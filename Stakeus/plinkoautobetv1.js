@@ -66,8 +66,8 @@ function adjustBetBasedOnHits() {
   if (hits1000.length > 0) {
    
     // If 1+ hits, set to 0.002
-    if (parseFloat(input.value) !== 0.01) {
-      input.value = 0.01;
+    if (parseFloat(input.value) !== 0.02) {
+      input.value = 0.02;
       input.dispatchEvent(new Event("input", { bubbles: true }));
       console.log("🔼 Set bet to 0.004 (recent 29x hit detected)");
     }  
@@ -75,8 +75,8 @@ function adjustBetBasedOnHits() {
   } else if (hits130.length > 0) {
    
       // If 1+ hits, set to 0.002
-    if (parseFloat(input.value) !== 0.01) {
-      input.value = 0.01;
+    if (parseFloat(input.value) !== 0.05) {
+      input.value = 0.05;
       input.dispatchEvent(new Event("input", { bubbles: true }));
       console.log("🔼 Set bet to 0.004 (recent 29x hit detected)");
     }
@@ -84,7 +84,7 @@ function adjustBetBasedOnHits() {
   } else if (hits26.length > 0) {
    
       // If 1+ hits, set to 0.002
-    if (parseFloat(input.value) !== 0.0014) {
+    if (parseFloat(input.value) !== 0.05) {
       input.value = 0.0014;
       input.dispatchEvent(new Event("input", { bubbles: true }));
       console.log("🔼 Set bet to 0.004 (recent 29x hit detected)");
@@ -99,15 +99,39 @@ function adjustBetBasedOnHits() {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-// Logic to check hits in the last 10 seconds
-function adjustBetBasedOnHits() {
-  const now = Date.now();
-  const tenSecAgo = now - 10000;
+function getBalance() {
+  const selector = 'button[data-active-currency="sweeps"] .text-neutral-default.ds-body-md-strong';
 
-  // Get hits in last 10 seconds
-  const hits = allPlinkoBets.filter(
-    b => b.payoutMultiplier === 26 && b.updatedAt.getTime() >= tenSecAgo
-  );
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    const interval = setInterval(() => {
+      const el = document.querySelector(selector);
+      attempts++;
+
+      if (el) {
+        clearInterval(interval);
+        const balance = parseFloat(el.textContent.replace(/,/g, ''));
+        resolve(balance);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        resolve(null); // Failed to find element
+      }
+    }, 100);
+  });
+}
+
+
+// Make your main function async
+async function adjustBetBasedOnHits() {
+  const balance = await getBalance(); // <-- MUST await
+  if (!balance) {
+    console.warn("⚠️ Could not read balance.");
+    return;
+  }
+
+  console.log("Balance detected:", balance);
 
   const input = getBetInput();
   if (!input) {
@@ -115,22 +139,43 @@ function adjustBetBasedOnHits() {
     return;
   }
 
-  if (hits.length > 0) {
-    // If 1+ hits, set to 0.002
-    if (parseFloat(input.value) !== 0.01) {
-      input.value = 0.01;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      console.log("🔼 Set bet to 0.004 (recent 29x hit detected)");
-    }
-  } else {
-    // If no hits, set to 0.01
-    if (parseFloat(input.value) !== 0.001) {
-      input.value = 0.001;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      console.log("🔽 Set bet to 0.001 (no recent 29x hits)");
+  // Multiplier → bet mapping (1% of balance)
+  const multiplierBets = {
+    9: balance * 0.001,
+    26: balance * 0.001,
+    130: balance * 0.001,
+    1000: balance * 0.001
+  };
+
+  const now = Date.now();
+  const tenSecAgo = now - 10000;
+
+  // Find first recent hit
+  let recentMultiplier = null;
+  for (const multiplier of Object.keys(multiplierBets)) {
+    const hit = allPlinkoBets.find(
+      b => b.payoutMultiplier === parseInt(multiplier) && b.updatedAt.getTime() >= tenSecAgo
+    );
+    if (hit) {
+      recentMultiplier = multiplier;
+      break;
     }
   }
+
+  const targetBet = recentMultiplier ? multiplierBets[recentMultiplier] : balance * 0.001;
+
+  if (parseFloat(input.value) !== targetBet) {
+    input.value = targetBet;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    console.log(
+      `${recentMultiplier ? "🔼" : "🔽"} Set bet to ${targetBet.toFixed(6)}${
+        recentMultiplier ? ` (recent ${recentMultiplier}x hit detected)` : " (no recent hits)"
+      }`
+    );
+  }
 }
+
+
 
 // Check every 5 seconds
 setInterval(adjustBetBasedOnHits, 1000);
