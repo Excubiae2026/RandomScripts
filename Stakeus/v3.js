@@ -31,7 +31,7 @@ function colorEmoji(color) {
 // ------------------------------
 // 📊 BUCKET / HIT LOGIC
 // ------------------------------
-const TOTAL_GAMES = 40000;
+const TOTAL_GAMES = 50000;
 const BUCKET_SIZE = 100;
 const bucketCount = Math.ceil(TOTAL_GAMES / BUCKET_SIZE);
 const buckets = Array.from({ length: bucketCount }, (_, i) => ({
