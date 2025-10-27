@@ -319,4 +319,4 @@ async function adjustBetBasedOnHits() {
 const dashboardLoop = setInterval(updateDashboard, 2000);
 const autoAdjustLoop = setInterval(adjustBetBasedOnHits, 1000);
 
-console.log("✅ Plinko AI Auto-Bet System Initialized with 1000× Probability Tracker");
+console.log("✅ Plinko AI Auto-Bet System Initialized with 1000× Probability Tracker v3");
