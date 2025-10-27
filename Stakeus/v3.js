@@ -301,4 +301,4 @@ document.addEventListener('keydown',e=>{
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
 autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
-console.log("✅ Plinko AI Auto-Bet System v3.1 Initialized");
+console.log("✅ Plinko AI Auto-Bet System v3.2 Initialized");
