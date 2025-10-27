@@ -328,9 +328,9 @@ async function adjustBetBasedOnHits() {
         // 🧮 Determine phase multiplier based on game count
         let phaseMultiplier = 1;
         if (totalGames <= 10000) phaseMultiplier = 2;
-        else if (totalGames <= 20000) phaseMultiplier = 4;
-        else if (totalGames <= 30000) phaseMultiplier = 8;
-        else phaseMultiplier = 16;
+        else if (totalGames <= 20000) phaseMultiplier = 8;
+        else if (totalGames <= 30000) phaseMultiplier = 16;
+        else phaseMultiplier = 32;
 
         // Apply compounding gain logic
         const bonus = netGain * (phaseMultiplier - 1);
@@ -350,7 +350,7 @@ async function adjustBetBasedOnHits() {
     }
 
     // 🎯 Stop goal: 1000× starting balance
-    if (startingBalance && balance >= startingBalance * 1000) {
+    if (startingBalance && balance >= startingBalance * 10) {
         if (autoClickerInterval) clearInterval(autoClickerInterval);
         if (autoAdjustLoop) clearInterval(autoAdjustLoop);
         if (dashboardLoop) clearInterval(dashboardLoop);
@@ -378,12 +378,12 @@ async function adjustBetBasedOnHits() {
     const currentGame = totalGames + 1;
     const hotspot = streakWindows.find(win => currentGame >= win.start && currentGame <= win.end);
     if (hotspot && getHotspotColor(hotspot, getAvgHits()) === "green") {
-        targetBet *= 2;
+        targetBet *= 5;
         console.log("💚 Active hotspot — temporary bet boost ×2");
     }
 
     // 🧤 Safety limits
-    targetBet = Math.min(targetBet, balance * 0.05);
+    targetBet = Math.min(targetBet, balance * 0.01);
     targetBet = Math.max(targetBet, safeBaseBet);
 
     console.log(`🎯 Bet: ${targetBet.toFixed(6)} | Bal: ${balance.toFixed(2)} | Phase: ${Math.ceil(totalGames/10000)} | Risk×${riskMultiplier.toFixed(2)}`);
