@@ -1,3 +1,7 @@
+// ============================================================
+// 🎯 Plinko AI Auto-Bet System v3.1 — Hotkeys + Dashboard + 150ms Interval
+// ============================================================
+
 // ------------------------------
 // 🔢 DATA STORAGE
 // ------------------------------
@@ -7,316 +11,241 @@ let streakWindows = JSON.parse(localStorage.getItem('plinkoStreakWindows') || '[
 let learnedPatterns = JSON.parse(localStorage.getItem('plinkoLearnedPatterns') || '[]');
 let predictionHistory = JSON.parse(localStorage.getItem('plinkoPredictionHistory') || '[]');
 
-// ------------------------------
-// 🔔 UTILITY FUNCTIONS
-// ------------------------------
 function saveMainData() { localStorage.setItem('plinkoMainData', JSON.stringify(mainData)); }
 function saveStreakWindows() { localStorage.setItem('plinkoStreakWindows', JSON.stringify(streakWindows)); }
 function saveLearnedPatterns() { localStorage.setItem('plinkoLearnedPatterns', JSON.stringify(learnedPatterns)); }
 function savePredictions() { localStorage.setItem('plinkoPredictionHistory', JSON.stringify(predictionHistory)); }
 
+// ------------------------------
+// 🔔 AUDIO + UTILS
+// ------------------------------
 function playPredictionSound() {
-    const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-    audio.volume = 0.4;
-    audio.play().catch(() => console.warn("🔇 Sound blocked until user interacts."));
+  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
+  audio.volume = 0.4;
+  audio.play().catch(() => console.warn("🔇 Sound blocked until user interacts."));
 }
-
 function colorEmoji(color) {
-    return color === "green" ? "🟩" : color === "yellow" ? "🟨" : "🟥";
+  return color === "green" ? "🟩" : color === "yellow" ? "🟨" : "🟥";
 }
 
 // ------------------------------
-// 📊 BUCKET LOGIC
+// 📊 BUCKET / HIT LOGIC
 // ------------------------------
-const BUCKET_SIZE = 100;
 const TOTAL_GAMES = 40000;
+const BUCKET_SIZE = 100;
 const bucketCount = Math.ceil(TOTAL_GAMES / BUCKET_SIZE);
 const buckets = Array.from({ length: bucketCount }, (_, i) => ({
-    start: i * BUCKET_SIZE,
-    end: (i + 1) * BUCKET_SIZE - 1,
-    hits: 0,
-    multipliers: []
+  start: i * BUCKET_SIZE, end: (i + 1) * BUCKET_SIZE - 1, hits: 0, multipliers: []
 }));
-
-function recordHitInBucket(gameNumber, multiplier) {
-    const index = Math.floor(gameNumber / BUCKET_SIZE);
-    if (index >= 0 && index < bucketCount) {
-        buckets[index].hits++;
-        buckets[index].multipliers.push(multiplier);
-    }
+function recordHitInBucket(gameNumber, mult) {
+  const idx = Math.floor(gameNumber / BUCKET_SIZE);
+  if (idx >= 0 && idx < bucketCount) {
+    buckets[idx].hits++; buckets[idx].multipliers.push(mult);
+  }
 }
-
-// ------------------------------
-// 🌟 HOTSPOT LOGIC
-// ------------------------------
-function recordHighHit(gameNumber, multiplier) {
-    let hotspot = streakWindows.find(win => gameNumber >= win.start && gameNumber <= win.end);
-    if (hotspot) {
-        hotspot.hits++;
-        hotspot.multipliers.push(multiplier);
-    } else {
-        const windowSize = 100;
-        streakWindows.push({
-            start: gameNumber - windowSize,
-            end: gameNumber + windowSize,
-            hits: 1,
-            multipliers: [multiplier]
-        });
-    }
-    saveStreakWindows();
-
-    if (!mainData.find(h => h.gameNumber === gameNumber)) {
-        mainData.push({ gameNumber, multiplier });
-        saveMainData();
-    }
+function recordHighHit(gameNumber, mult) {
+  let win = streakWindows.find(w => gameNumber >= w.start && gameNumber <= w.end);
+  if (win) { win.hits++; win.multipliers.push(mult); }
+  else streakWindows.push({ start: gameNumber - 100, end: gameNumber + 100, hits: 1, multipliers: [mult] });
+  saveStreakWindows();
+  if (!mainData.find(h => h.gameNumber === gameNumber)) {
+    mainData.push({ gameNumber, multiplier: mult });
+    saveMainData();
+  }
 }
-
-function getAvgHits(recentCount = 50) {
-    const recentWindows = streakWindows.slice(-recentCount);
-    if (!recentWindows.length) return 1;
-    const totalHits = recentWindows.reduce((sum, win) => sum + win.hits, 0);
-    return totalHits / recentWindows.length;
+function getAvgHits(count = 50) {
+  const wins = streakWindows.slice(-count);
+  if (!wins.length) return 1;
+  return wins.reduce((s, w) => s + w.hits, 0) / wins.length;
 }
-
-function getHotspotColor(win, avgHits) {
-    const ratio = win.hits / avgHits;
-    if (ratio >= 1.5) return 'green';
-    else if (ratio >= 0.8) return 'yellow';
-    else return 'red';
+function getHotspotColor(win, avg) {
+  const r = win.hits / avg;
+  return r >= 1.5 ? 'green' : r >= 0.8 ? 'yellow' : 'red';
 }
 
 // ------------------------------
 // 📥 PATTERN LEARNING
 // ------------------------------
 const PATTERN_LENGTH = 5;
-
-function recordPattern(gameNumber, multiplier) {
-    if (gameNumber <= PATTERN_LENGTH) return;
-    const pattern = allPlinkoBets.slice(gameNumber - PATTERN_LENGTH - 1, gameNumber - 1).map(b => b.payoutMultiplier);
-    learnedPatterns.push({ pattern, result: multiplier });
-    saveLearnedPatterns();
-}
-
-function matchPattern() {
-    if (allPlinkoBets.length < PATTERN_LENGTH) return null;
-    const recentSeq = allPlinkoBets.slice(-PATTERN_LENGTH).map(b => b.payoutMultiplier);
-    const matches = learnedPatterns.filter(p => p.pattern.join(',') === recentSeq.join(','));
-    if (!matches.length) return null;
-    const freq = {};
-    matches.forEach(m => { freq[m.result] = (freq[m.result] || 0) + 1; });
-    return parseInt(Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]);
+function recordPattern(gameNumber, mult) {
+  if (gameNumber <= PATTERN_LENGTH) return;
+  const pattern = allPlinkoBets.slice(gameNumber - PATTERN_LENGTH - 1, gameNumber - 1).map(b => b.payoutMultiplier);
+  learnedPatterns.push({ pattern, result: mult });
+  saveLearnedPatterns();
 }
 
 // ------------------------------
-// 📥 CAPTURE BETS
+// 🧠 CAPTURE BETS
 // ------------------------------
 function capturePlinkoBet(response) {
-    const bets = response.plinkoBet ? [response.plinkoBet] : response.bets || [];
-    if (!bets.length) return;
-
-    for (const bet of bets) {
-        const gameNumber = allPlinkoBets.length + 1;
-        allPlinkoBets.push({
-            id: bet.id,
-            payoutMultiplier: bet.payoutMultiplier,
-            updatedAt: new Date(),
-            gameNumber
-        });
-
-        if ([9, 26, 130, 1000].includes(bet.payoutMultiplier)) {
-            recordHighHit(gameNumber, bet.payoutMultiplier);
-            recordHitInBucket(gameNumber, bet.payoutMultiplier);
-            recordPattern(gameNumber, bet.payoutMultiplier);
-        }
+  const bets = response.plinkoBet ? [response.plinkoBet] : response.bets || [];
+  if (!bets.length) return;
+  for (const b of bets) {
+    const n = allPlinkoBets.length + 1;
+    allPlinkoBets.push({ id: b.id, payoutMultiplier: b.payoutMultiplier, updatedAt: new Date(), gameNumber: n });
+    if ([9,26,130,1000].includes(b.payoutMultiplier)) {
+      recordHighHit(n, b.payoutMultiplier); recordHitInBucket(n, b.payoutMultiplier); recordPattern(n, b.payoutMultiplier);
     }
+  }
 }
-
-// Hook fetch + XHR
-const originalFetch = window.fetch;
-window.fetch = async function (...args) {
-    const response = await originalFetch.apply(this, args);
-    try {
-        const cloned = response.clone();
-        const data = await cloned.json();
-        capturePlinkoBet(data);
-    } catch {}
-    return response;
+// Hook network
+const origFetch = window.fetch;
+window.fetch = async function(...args){
+  const res = await origFetch.apply(this,args);
+  try{ const c=res.clone(); const d=await c.json(); capturePlinkoBet(d); }catch{}
+  return res;
 };
-(function () {
-    const open = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (method, url) {
-        this.addEventListener("load", function () {
-            try {
-                const data = JSON.parse(this.responseText);
-                capturePlinkoBet(data);
-            } catch {}
-        });
-        open.apply(this, arguments);
-    };
+(function(){
+  const open=XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open=function(m,u){
+    this.addEventListener("load",function(){
+      try{const d=JSON.parse(this.responseText);capturePlinkoBet(d);}catch{}
+    }); open.apply(this,arguments);
+  };
 })();
 
 // ------------------------------
-// 🤖 AI INSIGHTS
+// ⚙️ SYSTEM VARS
 // ------------------------------
-function generateAIInsight() {
-    if (!allPlinkoBets.length) return "🤖 AI Insight: Awaiting data...";
-    const recent = allPlinkoBets.slice(-50);
-    const counts = { 9: 0, 26: 0, 130: 0, 1000: 0 };
-    recent.forEach(b => { if (counts[b.payoutMultiplier] !== undefined) counts[b.payoutMultiplier]++; });
-    const maxMultiplier = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-    if (maxMultiplier[1] / recent.length > 0.5) {
-        return `🤖 AI Insight: Multiplier ${maxMultiplier[0]} is dominating. Increase bet slightly.`;
-    } else {
-        return "🤖 AI Insight: Mixed pattern — stay conservative.";
-    }
-}
-
-function suggestAIBet() {
-    const avgHits = getAvgHits();
-    const hotspot = streakWindows.slice(-5).find(win => win.hits >= avgHits * 1.2);
-    if (hotspot) return "💡 Hotspot detected — consider moderate bet increase!";
-    return "💡 No strong pattern detected — maintain base bet.";
-}
-
-function getAIMood() {
-    const recent = allPlinkoBets.slice(-50);
-    const hotHits = recent.filter(b => [26, 130, 1000].includes(b.payoutMultiplier)).length;
-    if (hotHits > 10) return "🤖 Mood: Excited";
-    if (hotHits < 2) return "🤖 Mood: Cautious";
-    return "🤖 Mood: Neutral";
-}
+let inSafetyMode=false, autoAdjustEnabled=true, startingBalance=null;
+let autoClickerInterval=null, dashboardLoop=null, autoAdjustLoop=null;
+let betBoostFactor=1.0;
 
 // ------------------------------
-// ⚙️ BALANCE & BETTING
+// 🧮 HELPERS
 // ------------------------------
-let inSafetyMode = false;
-let autoAdjustEnabled = true;
-
-async function getBalance() {
-    const selector = 'button[data-active-currency="sweeps"] .text-neutral-default.ds-body-md-strong';
-    return new Promise(resolve => {
-        let attempts = 0;
-        const interval = setInterval(() => {
-            const el = document.querySelector(selector);
-            attempts++;
-            if (el) {
-                clearInterval(interval);
-                resolve(parseFloat(el.textContent.replace(/,/g, '')));
-            } else if (attempts >= 10) {
-                clearInterval(interval);
-                resolve(null);
-            }
-        }, 100);
-    });
+async function getBalance(){
+  const sel='button[data-active-currency="sweeps"] .text-neutral-default.ds-body-md-strong';
+  return new Promise(r=>{
+    let a=0;const i=setInterval(()=>{
+      const e=document.querySelector(sel);a++;
+      if(e){clearInterval(i);r(parseFloat(e.textContent.replace(/,/g,'')));}
+      else if(a>=10){clearInterval(i);r(null);}
+    },100);
+  });
 }
-
-function getBetInput() { return document.querySelector('input[data-testid="input-game-amount"][type="number"]'); }
-
-async function delayedBet(targetBet) {
-    const input = getBetInput();
-    if (!input) return;
-    const delay = 200 + Math.random() * 300;
-    await new Promise(r => setTimeout(r, delay));
-    input.value = targetBet;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+function getBetInput(){return document.querySelector('input[data-testid="input-game-amount"][type="number"]');}
+async function delayedBet(v){
+  const input=getBetInput(); if(!input)return;
+  await new Promise(r=>setTimeout(r,150+Math.random()*50));
+  input.value=v; input.dispatchEvent(new Event("input",{bubbles:true}));
 }
-
-async function getNetGain() {
-    const el = document.querySelector('span[data-testid="bets-stats-profit"]');
-    if (!el) return 0;
-    const value = parseFloat(el.textContent.replace(/,/g, ''));
-    return isNaN(value) ? 0 : value;
+async function getNetGain(){
+  const e=document.querySelector('span[data-testid="bets-stats-profit"]');
+  if(!e)return 0; const v=parseFloat(e.textContent.replace(/,/g,'')); return isNaN(v)?0:v;
 }
 
 // ------------------------------
-// 🎯 1000× HIT PROBABILITY
+// 📈 PROBABILITY
 // ------------------------------
-function get1000xHitProbability(currentGame = allPlinkoBets.length, rangeEnd = TOTAL_GAMES) {
-    const hits = allPlinkoBets.filter(b => b.payoutMultiplier === 1000);
-    if (!hits.length) return 0;
-    const totalGames = rangeEnd - currentGame;
-    const futureHits = hits.filter(h => h.gameNumber >= currentGame && h.gameNumber <= rangeEnd);
-    const hitRate = hits.length / allPlinkoBets.length;
-    const observedRate = futureHits.length / totalGames;
-    const probability = (hitRate * 0.6 + observedRate * 0.4) * 100;
-    return probability.toFixed(2);
+function get1000xHitProbability(cur=allPlinkoBets.length, end=TOTAL_GAMES){
+  const hits=allPlinkoBets.filter(b=>b.payoutMultiplier===1000);
+  if(!hits.length)return 0;
+  const total=end-cur; const future=hits.filter(h=>h.gameNumber>=cur&&h.gameNumber<=end);
+  const rate=hits.length/allPlinkoBets.length; const exp=total*rate;
+  const obs=future.length/total; return ((rate*0.6+obs*0.4)*100).toFixed(2);
 }
 
 // ------------------------------
-// 🖥️ DASHBOARD
+// 🖥️ DASHBOARD + HOTKEY LEGEND
 // ------------------------------
-const dashboard = document.createElement('div');
-dashboard.style.cssText = `
-position:fixed;top:10px;right:10px;width:360px;background:#111;color:#fff;
-font-family:sans-serif;font-size:12px;z-index:9999;padding:10px 12px;border-radius:6px;
-box-shadow:0 0 8px rgba(0,0,0,0.6);
-`;
-document.body.appendChild(dashboard);
+const dash=document.createElement('div');
+dash.style.cssText='position:fixed;top:10px;right:10px;width:370px;background:#111;color:#fff;font-family:sans-serif;font-size:12px;z-index:9999;padding:10px;border-radius:8px;box-shadow:0 0 8px #000;';
+document.body.appendChild(dash);
 
-let startingBalance = null;
+const legend=document.createElement('div');
+legend.style.cssText='position:fixed;top:10px;right:395px;width:180px;background:#000;color:#0f0;font-family:monospace;font-size:11px;padding:8px;border-radius:8px;z-index:9999;display:none;';
+legend.innerHTML=`
+<b>🎮 Hotkeys</b><br>
+Q → +10% bet<br>
+W → -10% bet<br>
+A → Toggle auto adjust<br>
+S → Toggle safety<br>
+Z → Start auto-click<br>
+X → Stop auto-click<br>
+P → One manual click<br>
+O → Toggle dashboard`;
+document.body.appendChild(legend);
 
-function updateDashboard() {
-    const avgHits = getAvgHits();
-    const currentGame = allPlinkoBets.length;
-    const prob1000 = get1000xHitProbability(currentGame, TOTAL_GAMES);
-    const hotspotInfo = streakWindows.slice(-5)
-        .map(win => `${colorEmoji(getHotspotColor(win, avgHits))} [${win.start}-${win.end}] Hits:${win.hits}`)
-        .join(' ');
-    dashboard.innerHTML = `
-<b>Plinko Dashboard</b><br>
-🎯 1000× Probability from ${currentGame}-${TOTAL_GAMES}: ${prob1000}%<br>
-Balance Goal: ${startingBalance ? (startingBalance * 1000).toFixed(2) : "Calculating..."}<br>
-AVG Hits: ${avgHits.toFixed(2)}<br>
-Hotspots: ${hotspotInfo || "None"}<br>
-${generateAIInsight()}<br>
-${suggestAIBet()}<br>
-${getAIMood()}
-    `;
+function updateDashboard(){
+  const avg=getAvgHits();
+  const hot=streakWindows.slice(-5).map(w=>`${colorEmoji(getHotspotColor(w,avg))}[${w.start}-${w.end}]${w.hits}`).join(' ');
+  const prob=get1000xHitProbability();
+  dash.innerHTML=`
+  <b>Plinko AI Dashboard</b><br>
+  Balance Goal: ${startingBalance?(startingBalance*1000).toFixed(2):'Calculating...'}<br>
+  Boost: ×${betBoostFactor.toFixed(1)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
+  Avg Hits: ${avg.toFixed(2)}<br>
+  Hotspots: ${hot||'None'}<br>
+  1000× Prob (next 10k): ${prob}%<br>
+  Bets Logged: ${allPlinkoBets.length}`;
+}
+let dashVisible=true;
+function toggleDashboard(){
+  dashVisible=!dashVisible;
+  dash.style.display=dashVisible?'block':'none';
+  legend.style.display=dashVisible?'block':'none';
 }
 
 // ------------------------------
-// ⚙️ AUTO BET ADJUSTER
+// ⚙️ SMART BET ADJUSTMENT
 // ------------------------------
-async function adjustBetBasedOnHits() {
-    if (!autoAdjustEnabled) return;
-    const balance = await getBalance();
-    if (!balance) return;
-    const input = getBetInput();
-    if (!input) return;
-
-    if (startingBalance === null && balance > 0) startingBalance = balance;
-    const netGain = await getNetGain();
-    const totalGames = allPlinkoBets.length;
-    const thousandHit = allPlinkoBets.some(b => b.payoutMultiplier === 1000);
-
-    if (thousandHit) {
-        playPredictionSound();
-        dashboard.style.border = "2px solid lime";
-        dashboard.style.boxShadow = "0 0 20px lime";
-        console.log("💎 1000× MULTIPLIER HIT — AUTO STOP");
-        clearInterval(autoAdjustLoop);
-        clearInterval(dashboardLoop);
-        return;
-    }
-
-    const safeBaseBet = balance / TOTAL_GAMES;
-    const riskMultiplier = Math.min(1 + Math.log10(balance / (startingBalance || 1) + 0.1) * 0.5, 5);
-    let targetBet = safeBaseBet * riskMultiplier;
-
-    const hotspot = streakWindows.find(win => totalGames + 1 >= win.start && totalGames + 1 <= win.end);
-    if (hotspot && getHotspotColor(hotspot, getAvgHits()) === "green") targetBet *= 2;
-
-    targetBet = Math.min(targetBet, balance * 0.01);
-    targetBet = Math.max(targetBet, safeBaseBet);
-
-    console.log(`🎯 Bet: ${targetBet.toFixed(6)} | Bal: ${balance.toFixed(2)}`);
-    await delayedBet(targetBet.toFixed(6));
+async function adjustBetBasedOnHits(){
+  if(!autoAdjustEnabled)return;
+  const bal=await getBalance(); if(!bal)return;
+  const input=getBetInput(); if(!input)return;
+  if(startingBalance===null&&bal>0){startingBalance=bal;console.log(`💰 Starting Balance: ${bal}`);}
+  const net=await getNetGain(); const total=allPlinkoBets.length;
+  if(allPlinkoBets.some(b=>b.payoutMultiplier===1000)){
+    clearInterval(autoClickerInterval); clearInterval(autoAdjustLoop);
+    playPredictionSound(); dash.style.border='2px solid lime'; return;
+  }
+  const safe=bal/TOTAL_GAMES; const prog=startingBalance?bal/startingBalance:1;
+  const risk=Math.min(1+Math.log10(prog+0.1)*0.5,5);
+  let bet=safe*risk*betBoostFactor;
+  const cur=total+1; const hot=streakWindows.find(w=>cur>=w.start&&cur<=w.end);
+  if(hot&&getHotspotColor(hot,getAvgHits())==='green'){bet*=2;}
+  bet=Math.min(bet,bal*0.01); bet=Math.max(bet,safe);
+  await delayedBet(bet.toFixed(6));
 }
 
 // ------------------------------
-// 🔁 START MAIN LOOPS
+// 🎯 PLAY BUTTON / AUTO CLICKER
 // ------------------------------
-const dashboardLoop = setInterval(updateDashboard, 2000);
-const autoAdjustLoop = setInterval(adjustBetBasedOnHits, 1000);
+function pressPlayButton(){
+  const btn=document.querySelector('button[data-testid="bet-button"]');
+  if(btn&&!btn.disabled){btn.click();}
+}
 
-console.log("✅ Plinko AI Auto-Bet System Initialized with 1000× Probability Tracker v3");
+// ------------------------------
+// 🎮 HOTKEYS
+// ------------------------------
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase(); const inp=getBetInput(); if(!inp)return;
+  let val=parseFloat(inp.value)||0;
+  if(k==='q'){val*=1.1;}
+  if(k==='w'){val*=0.9;}
+  if(['q','w'].includes(k)){
+    inp.value=val.toFixed(6); inp.dispatchEvent(new Event('input',{bubbles:true}));
+    console.log(`🎚️ Bet adjusted: ${val.toFixed(6)}`);
+  }
+  if(k==='a'){autoAdjustEnabled=!autoAdjustEnabled;console.log(`⚙️ Auto-adjust: ${autoAdjustEnabled}`);}
+  if(k==='s'){inSafetyMode=!inSafetyMode;console.log(`🛡️ Safety mode: ${inSafetyMode}`);}
+  if(k==='z'&&!autoClickerInterval){
+    autoClickerInterval=setInterval(pressPlayButton,150);
+    console.log('▶️ Auto-clicker started (150ms)');
+  }
+  if(k==='x'&&autoClickerInterval){
+    clearInterval(autoClickerInterval);autoClickerInterval=null;
+    console.log('⏹️ Auto-clicker stopped');
+  }
+  if(k==='p'){pressPlayButton();}
+  if(k==='o'){toggleDashboard();}
+});
+
+// ------------------------------
+// 🔁 MAIN LOOPS
+// ------------------------------
+dashboardLoop=setInterval(updateDashboard,2000);
+autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
+console.log("✅ Plinko AI Auto-Bet System v3.1 Initialized");
