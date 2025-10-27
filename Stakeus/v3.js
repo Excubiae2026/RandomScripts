@@ -189,7 +189,7 @@ function getAIMood() {
 }
 
 // ------------------------------
-// ⚙️ AUTO BET ADJUSTER
+// ⚙️ BET LOGIC
 // ------------------------------
 let inSafetyMode = false;
 let autoAdjustEnabled = true;
@@ -231,9 +231,20 @@ async function getNetGain() {
 }
 
 // ------------------------------
-// ⚙️ LIVE BET BOOST CONTROL
+// 🎯 1000× HIT PROBABILITY CALC
 // ------------------------------
-let betBoostFactor = 1.0;
+function get1000xHitProbability(currentGame = allPlinkoBets.length, rangeEnd = TOTAL_GAMES) {
+    const hits = allPlinkoBets.filter(b => b.payoutMultiplier === 1000);
+    if (!hits.length) return 0;
+
+    const totalGames = rangeEnd - currentGame;
+    const futureHits = hits.filter(h => h.gameNumber >= currentGame && h.gameNumber <= rangeEnd);
+
+    const hitRate = hits.length / allPlinkoBets.length;
+    const observedRate = futureHits.length / totalGames;
+    const probability = (hitRate * 0.6 + observedRate * 0.4) * 100;
+    return probability.toFixed(2);
+}
 
 // ------------------------------
 // 🖥️ DASHBOARD
@@ -251,18 +262,18 @@ boostInput.type = "range";
 boostInput.min = "0.5";
 boostInput.max = "5";
 boostInput.step = "0.1";
-boostInput.value = betBoostFactor;
+boostInput.value = "1.0";
 boostInput.style.width = "100%";
 
 const boostLabel = document.createElement('label');
-boostLabel.innerHTML = `⚙️ <b>Bet Boost:</b> <span id="boostVal">${betBoostFactor.toFixed(1)}×</span>`;
+boostLabel.innerHTML = `⚙️ <b>Bet Boost:</b> <span id="boostVal">1.0×</span>`;
 boostLabel.style.display = "block";
 boostLabel.style.marginBottom = "5px";
 
+let betBoostFactor = 1.0;
 boostInput.addEventListener('input', () => {
     betBoostFactor = parseFloat(boostInput.value);
     document.getElementById("boostVal").textContent = betBoostFactor.toFixed(1) + "×";
-    console.log(`🎚️ Live Bet Boost adjusted to ×${betBoostFactor.toFixed(1)}`);
 });
 
 dashboard.appendChild(boostLabel);
@@ -270,13 +281,17 @@ dashboard.appendChild(boostInput);
 
 function updateDashboard() {
     const avgHits = getAvgHits();
+    const currentGame = allPlinkoBets.length;
+    const prob1000 = get1000xHitProbability(currentGame, TOTAL_GAMES);
+
     const hotspotInfo = streakWindows.slice(-5)
         .map(win => `${colorEmoji(getHotspotColor(win, avgHits))} [${win.start}-${win.end}] Hits:${win.hits}`)
         .join(' ');
+
     dashboard.innerHTML = `
 <b>Plinko Dashboard</b><br>
-Balance Goal: ${startingBalance ? (startingBalance * 1000).toFixed(2) : "Calculating..."}<br>
-Current Bet Boost: ${betBoostFactor.toFixed(1)}×<br>
+🎯 1000× Probability ${currentGame}-${TOTAL_GAMES}: ${prob1000}%<br>
+Current Boost: ${betBoostFactor.toFixed(1)}×<br>
 AVG Hits: ${avgHits.toFixed(2)}<br>
 Hotspots: ${hotspotInfo || "None"}<br>
 ${generateAIInsight()}<br>
@@ -288,10 +303,9 @@ ${getAIMood()}
 }
 
 // ------------------------------
-// ⚙️ SMART BET ADJUSTER — "1000× TARGET"
+// ⚙️ SMART BET ADJUSTER — 1000× TARGETING
 // ------------------------------
 let startingBalance = null;
-let phaseSwitched = false;
 let autoClickerInterval = null;
 let dashboardLoop = null;
 let autoAdjustLoop = null;
@@ -306,87 +320,36 @@ async function adjustBetBasedOnHits() {
 
     if (startingBalance === null && balance > 0) {
         startingBalance = balance;
-        console.log(`💰 Starting balance set: ${startingBalance.toFixed(2)}`);
+        console.log(`💰 Starting balance: ${startingBalance.toFixed(2)}`);
     }
 
     const netGain = await getNetGain();
     const totalGames = allPlinkoBets.length;
     const thousandHit = allPlinkoBets.some(b => b.payoutMultiplier === 1000);
 
-    // 🛑 AUTO-STOP on 1000× hit
     if (thousandHit) {
-        if (autoClickerInterval) { clearInterval(autoClickerInterval); autoClickerInterval = null; }
-        if (autoAdjustLoop) clearInterval(autoAdjustLoop);
-        if (dashboardLoop) clearInterval(dashboardLoop);
-
+        clearInterval(autoClickerInterval);
+        clearInterval(autoAdjustLoop);
+        clearInterval(dashboardLoop);
         playPredictionSound();
-        dashboard.style.border = "2px solid lime";
-        dashboard.style.boxShadow = "0 0 20px lime";
-
-        console.log("💎 1000× MULTIPLIER HIT — AUTO STOP & PHASE REWARD APPLIED");
-
-        // 🧮 Determine phase multiplier based on game count
-        let phaseMultiplier = 1;
-        if (totalGames <= 10000) phaseMultiplier = 2;
-        else if (totalGames <= 20000) phaseMultiplier = 8;
-        else if (totalGames <= 30000) phaseMultiplier = 16;
-        else phaseMultiplier = 32;
-
-        // Apply compounding gain logic
-        const bonus = netGain * (phaseMultiplier - 1);
-        const newBalance = balance + bonus;
-
-        console.log(`🔥 Phase ${phaseMultiplier}× REWARD: +${bonus.toFixed(2)} added to balance (est: ${newBalance.toFixed(2)})`);
-
-        // Optional: visual alert
-        const msg = document.createElement('div');
-        msg.textContent = `🔥 Phase ${phaseMultiplier}× REWARD ACTIVE — Estimated New Balance: ${newBalance.toFixed(2)}`;
-        msg.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-        background:black;color:lime;padding:20px 30px;font-size:16px;border:2px solid lime;z-index:99999;`;
-        document.body.appendChild(msg);
-        setTimeout(() => msg.remove(), 6000);
-
+        console.log("💎 1000× MULTIPLIER HIT — AUTO STOP.");
         return;
     }
 
-    // 🎯 Stop goal: 1000× starting balance
-    if (startingBalance && balance >= startingBalance * 10) {
-        if (autoClickerInterval) clearInterval(autoClickerInterval);
-        if (autoAdjustLoop) clearInterval(autoAdjustLoop);
-        if (dashboardLoop) clearInterval(dashboardLoop);
-        playPredictionSound();
-        dashboard.style.border = "2px solid gold";
-        dashboard.style.boxShadow = "0 0 20px gold";
-        console.log(`🏆 GOAL ACHIEVED! ${balance.toFixed(2)} ≥ ${startingBalance.toFixed(2)} × 1000.`);
-        return;
+    const safeBaseBet = balance / TOTAL_GAMES;
+    let targetBet = safeBaseBet * betBoostFactor;
+
+    if (netGain > 0) {
+        const targetProfit = netGain * 1000;
+        const possibleBet = targetProfit / 1000;
+        targetBet = Math.max(targetBet, possibleBet * 0.5);
+    } else if (netGain < 0) {
+        const recoveryFactor = Math.min(Math.abs(netGain) * 0.001, balance * 0.05);
+        targetBet += recoveryFactor;
     }
 
-    // 🧮 Regular dynamic adjustment logic
-    let gameRange = TOTAL_GAMES;
-    if (totalGames >= 10000 && !phaseSwitched) {
-        console.log("🚀 Phase shift: increased risk scaling.");
-        phaseSwitched = true;
-    }
-
-    const safeBaseBet = balance / gameRange;
-    const progressRatio = startingBalance ? balance / startingBalance : 1;
-    const riskMultiplier = Math.min(1 + Math.log10(progressRatio + 0.1) * 0.5, 5);
-
-    let targetBet = safeBaseBet * riskMultiplier * betBoostFactor;
-
-    // 🔥 Hotspot bonus
-    const currentGame = totalGames + 1;
-    const hotspot = streakWindows.find(win => currentGame >= win.start && currentGame <= win.end);
-    if (hotspot && getHotspotColor(hotspot, getAvgHits()) === "green") {
-        targetBet *= 5;
-        console.log("💚 Active hotspot — temporary bet boost ×2");
-    }
-
-    // 🧤 Safety limits
-    targetBet = Math.min(targetBet, balance * 0.01);
     targetBet = Math.max(targetBet, safeBaseBet);
-
-    console.log(`🎯 Bet: ${targetBet.toFixed(6)} | Bal: ${balance.toFixed(2)} | Phase: ${Math.ceil(totalGames/10000)} | Risk×${riskMultiplier.toFixed(2)}`);
+    targetBet = Math.min(targetBet, balance * 0.05);
 
     await delayedBet(targetBet.toFixed(6));
 }
@@ -396,45 +359,35 @@ async function adjustBetBasedOnHits() {
 // ------------------------------
 function pressPlayButton() {
     const button = document.querySelector('button[data-testid="bet-button"]');
-    if (button && !button.disabled) {
-        button.click();
-        console.log("🎯 Play button clicked");
-    }
+    if (button && !button.disabled) button.click();
 }
 
 // ------------------------------
-// 🎛️ HOTKEY CONTROLS
+// 🎛️ HOTKEYS
 // ------------------------------
-document.addEventListener("keydown", (e) => {
+document.addEventListener("keydown", e => {
     const key = e.key.toLowerCase();
     const input = getBetInput();
     if (!input) return;
 
     let current = parseFloat(input.value) || 0;
-
     if (key === "q") { current *= 1.1; }
     if (key === "w") { current *= 0.9; }
+
     if (["q", "w"].includes(key)) {
         input.value = current.toFixed(6);
         input.dispatchEvent(new Event("input", { bubbles: true }));
-        console.log(`🎚️ Bet adjusted: ${current.toFixed(6)}`);
     }
 
-    if (key === "a") { autoAdjustEnabled = !autoAdjustEnabled; console.log(`⚙️ Auto-adjust: ${autoAdjustEnabled}`); }
-    if (key === "s") { inSafetyMode = !inSafetyMode; console.log(`🛡️ Safety mode: ${inSafetyMode}`); }
+    if (key === "a") autoAdjustEnabled = !autoAdjustEnabled;
+    if (key === "s") inSafetyMode = !inSafetyMode;
 
-    if (key === "z") {
-        if (!autoClickerInterval) {
-            autoClickerInterval = setInterval(pressPlayButton, 100);
-            console.log("▶️ Auto-clicker started");
-        }
+    if (key === "z" && !autoClickerInterval) {
+        autoClickerInterval = setInterval(pressPlayButton, 100);
     }
-    if (key === "x") {
-        if (autoClickerInterval) {
-            clearInterval(autoClickerInterval);
-            autoClickerInterval = null;
-            console.log("⏹️ Auto-clicker stopped");
-        }
+    if (key === "x" && autoClickerInterval) {
+        clearInterval(autoClickerInterval);
+        autoClickerInterval = null;
     }
 });
 
@@ -444,4 +397,4 @@ document.addEventListener("keydown", (e) => {
 dashboardLoop = setInterval(updateDashboard, 2000);
 autoAdjustLoop = setInterval(adjustBetBasedOnHits, 1000);
 
-console.log("✅ Plinko AI Auto-Bet System Initialized with Auto-Stop on 1000× Hit");
+console.log("✅ Plinko AI Auto-Bet System Initialized (with 1000× Probability Tracker)");
