@@ -213,8 +213,32 @@ async function adjustBetBasedOnHits(){
 // 🎯 PLAY BUTTON / AUTO CLICKER
 // ------------------------------
 function pressPlayButton(){
-  const btn=document.querySelector('button[data-testid="bet-button"]');
-  if(btn&&!btn.disabled){btn.click();}
+  const btn = document.querySelector('button[data-testid="bet-button"]');
+  if(!btn || btn.disabled) return;
+
+  // Stop auto-clicker if 40,000 games reached
+  if(allPlinkoBets.length >= TOTAL_GAMES){
+    if(autoClickerInterval){
+      clearInterval(autoClickerInterval);
+      autoClickerInterval = null;
+      alert('🚨 Reached 40,000 bets! Auto-clicker stopped.');
+      console.log('⏹️ Auto-clicker stopped due to 40,000 bets');
+    }
+    return;
+  }
+
+  // Stop auto-clicker if 1000x hit
+  if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
+    if(autoClickerInterval){
+      clearInterval(autoClickerInterval);
+      autoClickerInterval = null;
+      alert('🏆 1000x hit detected! Auto-clicker stopped.');
+      console.log('⏹️ Auto-clicker stopped due to 1000x hit');
+    }
+    return;
+  }
+
+  btn.click();
 }
 
 // ------------------------------
