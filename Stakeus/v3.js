@@ -186,17 +186,15 @@ function toggleDashboard(){
   dash.style.display=dashVisible?'block':'none';
   legend.style.display=dashVisible?'block':'none';
 }
-
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
+async function adjustBetBasedOnHits() {
+  if (!autoAdjustEnabled) return;
 
-async function adjustBetBasedOnHits(){
-  if(!autoAdjustEnabled) return;
+  const bal = await getBalance(); if (!bal) return;
+  const input = getBetInput(); if (!input) return;
 
-  const bal = await getBalance(); if(!bal) return;
-  const input = getBetInput(); if(!input) return;
-
-  if(startingBalance === null && bal > 0){
+  if (startingBalance === null && bal > 0) {
     startingBalance = bal;
     console.log(`💰 Starting Balance: ${bal}`);
   }
@@ -205,15 +203,16 @@ async function adjustBetBasedOnHits(){
   const total = allPlinkoBets.length;
 
   // --- Tiny bet logic between 40k and 50k ---
-  if(total >= 40000 && total <= 50000){
-    // Map 40k → 0.01, 50k → 0.02
+  if (total >= 40000 && total <= 50000) {
+    // Map 40,000 → 0.01 and 50,000 → 0.02
     const tinyBet = 0.01 + ((total - 40000) / 10000) * 0.01;
     await delayedBet(tinyBet.toFixed(6));
+    console.log(`🎯 Tiny bet active: ${tinyBet.toFixed(6)} Sweeps (Game ${total})`);
     return;
   }
 
   // --- Normal auto-adjust logic ---
-  if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
+  if (allPlinkoBets.some(b => b.payoutMultiplier === 1000)) {
     clearInterval(autoClickerInterval); 
     clearInterval(autoAdjustLoop);
     playPredictionSound(); 
@@ -228,7 +227,7 @@ async function adjustBetBasedOnHits(){
 
   const cur = total + 1;
   const hot = streakWindows.find(w => cur >= w.start && cur <= w.end);
-  if(hot && getHotspotColor(hot, getAvgHits()) === 'green'){
+  if (hot && getHotspotColor(hot, getAvgHits()) === 'green') {
     bet *= 2;
   }
 
@@ -236,7 +235,6 @@ async function adjustBetBasedOnHits(){
   bet = Math.max(bet, safe);
   await delayedBet(bet.toFixed(6));
 }
-
 
 // ------------------------------
 // 🎯 PLAY BUTTON / AUTO CLICKER
@@ -285,7 +283,7 @@ document.addEventListener('keydown',e=>{
   if(k==='a'){autoAdjustEnabled=!autoAdjustEnabled;console.log(`⚙️ Auto-adjust: ${autoAdjustEnabled}`);}
   if(k==='s'){inSafetyMode=!inSafetyMode;console.log(`🛡️ Safety mode: ${inSafetyMode}`);}
   if(k==='z'&&!autoClickerInterval){
-    autoClickerInterval=setInterval(pressPlayButton,150);
+    autoClickerInterval=setInterval(pressPlayButton,100);
     console.log('▶️ Auto-clicker started (150ms)');
   }
   if(k==='x'&&autoClickerInterval){
@@ -300,5 +298,5 @@ document.addEventListener('keydown',e=>{
 // 🔁 MAIN LOOPS
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
-autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
+autoAdjustLoop=setInterval(adjustBetBasedOnHits,500);
 console.log("✅ Plinko AI Auto-Bet System v3.2 Initialized");
