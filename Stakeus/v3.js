@@ -1,5 +1,5 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.1 — Hotkeys + Dashboard + 150ms Interval
+// 🎯 Plinko AI Auto-Bet System v3.2 — Hotkeys + Dashboard + 150ms Interval
 // ============================================================
 
 // ------------------------------
