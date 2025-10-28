@@ -329,7 +329,7 @@ document.addEventListener('keydown',e=>{
   if(k==='s'){inSafetyMode=!inSafetyMode;console.log(`🛡️ Safety mode: ${inSafetyMode}`);}
   if(k==='z'&&!autoClickerInterval){
     autoClickerInterval=setInterval(pressPlayButton,100);
-    console.log('▶️ Auto-clicker started (150ms)');
+    console.log('▶️ Auto-clicker started (100ms)');
   }
   if(k==='x'&&autoClickerInterval){
     clearInterval(autoClickerInterval);autoClickerInterval=null;
