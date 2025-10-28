@@ -53,7 +53,7 @@ function recordHighHit(gameNumber, mult) {
     saveMainData();
   }
 }
-function getAvgHits(count = 50) {
+function getAvgHits(count = 5) {
   const wins = streakWindows.slice(-count);
   if (!wins.length) return 1;
   return wins.reduce((s, w) => s + w.hits, 0) / wins.length;
@@ -66,7 +66,7 @@ function getHotspotColor(win, avg) {
 // ------------------------------
 // 📥 PATTERN LEARNING
 // ------------------------------
-const PATTERN_LENGTH = 5;
+const PATTERN_LENGTH = 25;
 function recordPattern(gameNumber, mult) {
   if (gameNumber <= PATTERN_LENGTH) return;
   const pattern = allPlinkoBets.slice(gameNumber - PATTERN_LENGTH - 1, gameNumber - 1).map(b => b.payoutMultiplier);
