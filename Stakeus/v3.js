@@ -208,7 +208,7 @@ function updateDashboard() {
 
   // Format output
   dash.innerHTML = `
-  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard</div>
+  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.3</div>
   <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
   <div>💰 <b>Balance Goal:</b> ${startingBalance ? (startingBalance * 1000).toFixed(2) : "..."}</div>
   <div>🎯 <b>Boost:</b> ×${betBoostFactor.toFixed(1)} | 🛡️ ${inSafetyMode ? "Safety ON" : "Safety OFF"}</div>
