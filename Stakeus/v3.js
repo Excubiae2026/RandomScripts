@@ -147,15 +147,24 @@ function get1000xHitProbability(cur=allPlinkoBets.length, end=TOTAL_GAMES){
 }
 
 // ------------------------------
-// 🖥️ DASHBOARD + HOTKEY LEGEND
+// 🖥️ ENHANCED DASHBOARD + HOTKEY LEGEND
 // ------------------------------
-const dash=document.createElement('div');
-dash.style.cssText='position:fixed;top:10px;right:10px;width:370px;background:#111;color:#fff;font-family:sans-serif;font-size:12px;z-index:9999;padding:10px;border-radius:8px;box-shadow:0 0 8px #000;';
+const dash = document.createElement('div');
+dash.style.cssText = `
+  position:fixed;top:10px;right:10px;width:390px;background:#111;color:#fff;
+  font-family:'Consolas',monospace;font-size:12px;z-index:9999;padding:10px;
+  border-radius:8px;box-shadow:0 0 10px rgba(0,255,100,0.3);
+  border:1px solid rgba(0,255,100,0.2);
+`;
 document.body.appendChild(dash);
 
-const legend=document.createElement('div');
-legend.style.cssText='position:fixed;top:10px;right:395px;width:180px;background:#000;color:#0f0;font-family:monospace;font-size:11px;padding:8px;border-radius:8px;z-index:9999;display:none;';
-legend.innerHTML=`
+const legend = document.createElement('div');
+legend.style.cssText = `
+  position:fixed;top:10px;right:415px;width:180px;background:#000;
+  color:#0f0;font-family:monospace;font-size:11px;padding:8px;
+  border-radius:8px;z-index:9999;display:none;
+`;
+legend.innerHTML = `
 <b>🎮 Hotkeys</b><br>
 Q → +10% bet<br>
 W → -10% bet<br>
@@ -167,25 +176,61 @@ P → One manual click<br>
 O → Toggle dashboard`;
 document.body.appendChild(legend);
 
-function updateDashboard(){
-  const avg=getAvgHits();
-  const hot=streakWindows.slice(-5).map(w=>`${colorEmoji(getHotspotColor(w,avg))}[${w.start}-${w.end}]${w.hits}`).join(' ');
-  const prob=get1000xHitProbability();
-  dash.innerHTML=`
-  <b>Plinko AI Dashboard</b><br>
-  Balance Goal: ${startingBalance?(startingBalance*1000).toFixed(2):'Calculating...'}<br>
-  Boost: ×${betBoostFactor.toFixed(1)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
-  Avg Hits: ${avg.toFixed(2)}<br>
-  Hotspots: ${hot||'None'}<br>
-  1000× Prob (next 10k): ${prob}%<br>
-  Bets Logged: ${allPlinkoBets.length}`;
+function updateDashboard() {
+  const avg = getAvgHits();
+  const total = allPlinkoBets.length;
+  const prob = get1000xHitProbability();
+  const all1000s = allPlinkoBets.filter(b => b.payoutMultiplier === 1000);
+
+  // Last 1000× hit data
+  let last1000 = all1000s.length ? all1000s[all1000s.length - 1] : null;
+  let lastGame = last1000 ? last1000.gameNumber : "N/A";
+  let sinceLast = last1000 ? (total - lastGame) : "N/A";
+
+  // Average spacing between 1000× hits
+  let avgSpacing = "N/A";
+  if (all1000s.length > 1) {
+    let diffs = all1000s.slice(1).map((hit, i) => hit.gameNumber - all1000s[i].gameNumber);
+    avgSpacing = (diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(0);
+  }
+
+  // Hotspots: only show when 1000× hit exists
+  let hot = "None";
+  if (all1000s.length) {
+    const latest1000 = all1000s[all1000s.length - 1];
+    const nearHot = streakWindows
+      .filter(w => w.multipliers.includes(1000))
+      .slice(-3)
+      .map(w => `💎 [${w.start}-${w.end}] hits:${w.hits}`)
+      .join(' ');
+    hot = nearHot || "No recent 1000× zones";
+  }
+
+  // Format output
+  dash.innerHTML = `
+  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard</div>
+  <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
+  <div>💰 <b>Balance Goal:</b> ${startingBalance ? (startingBalance * 1000).toFixed(2) : "..."}</div>
+  <div>🎯 <b>Boost:</b> ×${betBoostFactor.toFixed(1)} | 🛡️ ${inSafetyMode ? "Safety ON" : "Safety OFF"}</div>
+  <div>📈 <b>Avg Hits:</b> ${avg.toFixed(2)} | <b>Bets Logged:</b> ${total}</div>
+  <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
+  <div>💎 <b>1000× Stats</b></div>
+  <div>• Last Hit: ${lastGame}</div>
+  <div>• Since Last: ${sinceLast}</div>
+  <div>• Avg Gap: ${avgSpacing}</div>
+  <div>• 1000× Probability (Next 10k): ${prob}%</div>
+  ${all1000s.length ? `<div style="margin-top:6px;">🔥 <b>Hotspots:</b> ${hot}</div>` : ""}
+  `;
 }
-let dashVisible=true;
-function toggleDashboard(){
-  dashVisible=!dashVisible;
-  dash.style.display=dashVisible?'block':'none';
-  legend.style.display=dashVisible?'block':'none';
+
+let dashVisible = true;
+function toggleDashboard() {
+  dashVisible = !dashVisible;
+  dash.style.display = dashVisible ? 'block' : 'none';
+  legend.style.display = dashVisible ? 'block' : 'none';
 }
+
+
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
 async function adjustBetBasedOnHits() {
