@@ -145,6 +145,88 @@ function get1000xHitProbability(cur=allPlinkoBets.length, end=TOTAL_GAMES){
   const rate=hits.length/allPlinkoBets.length; const exp=total*rate;
   const obs=future.length/total; return ((rate*0.6+obs*0.4)*100).toFixed(2);
 }
+// ------------------------------
+// 💾 SAVE + LOAD + EXPORT / IMPORT DATA
+// ------------------------------
+
+// Merge in-memory + saved data
+function mergeSavedData() {
+  try {
+    const savedMain = JSON.parse(localStorage.getItem('plinkoMainData') || '[]');
+    const savedStreaks = JSON.parse(localStorage.getItem('plinkoStreakWindows') || '[]');
+    const savedPatterns = JSON.parse(localStorage.getItem('plinkoLearnedPatterns') || '[]');
+    const savedPredictions = JSON.parse(localStorage.getItem('plinkoPredictionHistory') || '[]');
+
+    if (savedMain.length > mainData.length) mainData = savedMain;
+    if (savedStreaks.length > streakWindows.length) streakWindows = savedStreaks;
+    if (savedPatterns.length > learnedPatterns.length) learnedPatterns = savedPatterns;
+    if (savedPredictions.length > predictionHistory.length) predictionHistory = savedPredictions;
+
+    console.log(`📂 Loaded saved data: ${mainData.length} main, ${streakWindows.length} streaks`);
+  } catch (err) {
+    console.error("❌ Error merging saved data:", err);
+  }
+}
+
+// Export data to downloadable JSON
+function downloadAllData() {
+  const data = {
+    timestamp: new Date().toISOString(),
+    mainData, streakWindows, learnedPatterns, predictionHistory, allPlinkoBets
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `PlinkoAI_Data_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  console.log("💾 Data downloaded successfully!");
+}
+
+// Import data from file
+function importDataFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      mainData = data.mainData || mainData;
+      streakWindows = data.streakWindows || streakWindows;
+      learnedPatterns = data.learnedPatterns || learnedPatterns;
+      predictionHistory = data.predictionHistory || predictionHistory;
+      if (data.allPlinkoBets) {
+        allPlinkoBets.splice(0, allPlinkoBets.length, ...data.allPlinkoBets);
+      }
+      saveMainData(); saveStreakWindows(); saveLearnedPatterns(); savePredictions();
+      console.log("✅ Data imported successfully!");
+    } catch (err) {
+      console.error("❌ Error importing data:", err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// Hidden upload button
+const uploadInput = document.createElement('input');
+uploadInput.type = 'file';
+uploadInput.accept = 'application/json';
+uploadInput.style.display = 'none';
+uploadInput.addEventListener('change', (e) => {
+  if (e.target.files.length) importDataFromFile(e.target.files[0]);
+});
+document.body.appendChild(uploadInput);
+
+// Auto-save backup every 60 seconds
+setInterval(() => {
+  saveMainData();
+  saveStreakWindows();
+  saveLearnedPatterns();
+  savePredictions();
+  console.log("💾 Auto-saved all data.");
+}, 60000);
+
+// Merge on start
+mergeSavedData();
 
 // ------------------------------
 // 🖥️ ENHANCED DASHBOARD + HOTKEY LEGEND
@@ -208,7 +290,7 @@ function updateDashboard() {
 
   // Format output
   dash.innerHTML = `
-  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.3</div>
+  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.4</div>
   <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
   <div>💰 <b>Balance Goal:</b> ${startingBalance ? (startingBalance * 1000).toFixed(2) : "..."}</div>
   <div>🎯 <b>Boost:</b> ×${betBoostFactor.toFixed(1)} | 🛡️ ${inSafetyMode ? "Safety ON" : "Safety OFF"}</div>
@@ -344,4 +426,4 @@ document.addEventListener('keydown',e=>{
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
 autoAdjustLoop=setInterval(adjustBetBasedOnHits,500);
-console.log("✅ Plinko AI Auto-Bet System v3.3 Initialized");
+console.log("✅ Plinko AI Auto-Bet System v3.4 Initialized");
