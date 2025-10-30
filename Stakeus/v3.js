@@ -59,15 +59,35 @@ function recordHitInBucket(gameNumber, mult) {
   }
 }
 function recordHighHit(gameNumber, mult) {
+  // Check if we already have a streak window for this game
   let win = streakWindows.find(w => gameNumber >= w.start && gameNumber <= w.end);
-  if (win) { win.hits++; win.multipliers.push(mult); }
-  else streakWindows.push({ start: gameNumber - 100, end: gameNumber + 100, hits: 1, multipliers: [mult] });
+  if (win) {
+    win.hits++;
+    win.multipliers.push(mult);
+  } else {
+    streakWindows.push({
+      start: gameNumber - 100,
+      end: gameNumber + 100,
+      hits: 1,
+      multipliers: [mult]
+    });
+  }
+
+  // Save streak windows
   saveStreakWindows();
+
+  // Save main data
   if (!mainData.find(h => h.gameNumber === gameNumber)) {
     mainData.push({ gameNumber, multiplier: mult });
     saveMainData();
   }
+
+  // Optional: log to console for each special multiplier
+  if ([1000, 130, 26, 9].includes(mult)) {
+    console.log(`🎯 Hit detected! ${mult}× at game ${gameNumber}`);
+  }
 }
+
 function getAvgHits(count = 5) {
   const wins = streakWindows.slice(-count);
   if (!wins.length) return 1;
@@ -100,13 +120,15 @@ function capturePlinkoBet(response) {
     allPlinkoBets.push({ id: b.id, payoutMultiplier: b.payoutMultiplier, updatedAt: new Date(), gameNumber: n });
     saveAllBets();
 
-    if ([9,26,130,1000].includes(b.payoutMultiplier)) {
-      recordHighHit(n, b.payoutMultiplier); 
-      recordHitInBucket(n, b.payoutMultiplier); 
+    // Track any “special hit”
+    if ([9, 26, 130, 1000].includes(b.payoutMultiplier)) {
+      recordHighHit(n, b.payoutMultiplier);
+      recordHitInBucket(n, b.payoutMultiplier);
       recordPattern(n, b.payoutMultiplier);
     }
   }
 }
+
 // Hook network
 const origFetch = window.fetch;
 window.fetch = async function(...args){
@@ -204,6 +226,22 @@ function updateDashboard() {
   let last1000 = all1000s.length ? all1000s[all1000s.length - 1] : null;
   let lastGame = last1000 ? last1000.gameNumber : "N/A";
   let sinceLast = last1000 ? (total - lastGame) : "N/A";
+// 130× Stats
+const all130s = allPlinkoBets.filter(b => b.payoutMultiplier === 130);
+let last130 = all130s.length ? all130s[all130s.length - 1].gameNumber : "N/A";
+let sinceLast130 = all130s.length ? (total - last130) : "N/A";
+let avgSpacing130 = "N/A";
+if (all130s.length > 1) {
+  const diffs = all130s.slice(1).map((hit, i) => hit.gameNumber - all130s[i].gameNumber);
+  avgSpacing130 = (diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(0);
+}
+dash.innerHTML += `
+<hr style="border:0;border-top:1px solid #333;margin:4px 0;">
+<div>💎 <b>130× Stats</b></div>
+<div>• Last Hit: ${last130}</div>
+<div>• Since Last: ${sinceLast130}</div>
+<div>• Avg Gap: ${avgSpacing130}</div>
+`;
 
   let avgSpacing = "N/A";
   if (all1000s.length > 1) {
