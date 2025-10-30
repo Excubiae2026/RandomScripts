@@ -1,5 +1,5 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.2 — Hotkeys + Dashboard + 150ms Interval + Staged Bets
+// 🎯 Plinko AI Auto-Bet System v3.3 — Hotkeys + Dashboard + 150ms Interval + Staged Bets + Dynamic Boost
 // ============================================================
 
 // ------------------------------
@@ -31,7 +31,7 @@ function colorEmoji(color) {
 // ------------------------------
 // 📊 BUCKET / HIT LOGIC
 // ------------------------------
-const TOTAL_GAMES = 50000; // increased to accommodate your high-stage bets
+const TOTAL_GAMES = 50000; // increased to accommodate high-stage bets
 const BUCKET_SIZE = 100;
 const bucketCount = Math.ceil(TOTAL_GAMES / BUCKET_SIZE);
 const buckets = Array.from({ length: bucketCount }, (_, i) => ({
@@ -132,7 +132,7 @@ async function getBalance(){
   return new Promise(r=>{
     let a=0;const i=setInterval(()=>{
       const e=document.querySelector(sel);a++;
-      if(e){clearInterval(i);r(parseFloat(e.textContent.replace(/,/g,'')));}
+      if(e){clearInterval(i);r(parseFloat(e.textContent.replace(/,/g,''))); }
       else if(a>=10){clearInterval(i);r(null);}
     },100);
   });
@@ -180,7 +180,9 @@ S → Toggle safety<br>
 Z → Start auto-click<br>
 X → Stop auto-click<br>
 P → One manual click<br>
-O → Toggle dashboard`;
+O → Toggle dashboard<br>
+R → Boost +10%<br>
+F → Boost -10%`;
 document.body.appendChild(legend);
 
 function updateDashboard(){
@@ -190,7 +192,7 @@ function updateDashboard(){
   dash.innerHTML=`
   <b>Plinko AI Dashboard</b><br>
   Balance Goal: ${startingBalance?(startingBalance*1000).toFixed(2):'Calculating...'}<br>
-  Boost: ×${betBoostFactor.toFixed(1)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
+  Boost: ×${betBoostFactor.toFixed(2)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
   Avg Hits: ${avg.toFixed(2)}<br>
   Hotspots: ${hot||'None'}<br>
   1000× Prob (next 10k): ${prob}%<br>
@@ -204,7 +206,7 @@ function toggleDashboard(){
 }
 
 // ------------------------------
-// ⚙️ SMART BET ADJUSTMENT (Exponential Staged Strategy)
+// ⚙️ SMART BET ADJUSTMENT (Exponential Staged Strategy + Boost)
 async function adjustBetBasedOnHits() {
   if (!autoAdjustEnabled) return;
 
@@ -238,6 +240,9 @@ async function adjustBetBasedOnHits() {
     else if (color === 'green') bet *= 2;
   }
 
+  // Apply dynamic boost factor
+  bet *= betBoostFactor;
+
   // Safety: limit to max 1% of balance and min of safe bet
   bet = Math.min(bet, bal * 0.01);
   bet = Math.max(bet, safe);
@@ -252,7 +257,6 @@ function pressPlayButton(){
   const btn = document.querySelector('button[data-testid="bet-button"]');
   if(!btn || btn.disabled) return;
 
-  // Stop auto-clicker if 50,000 games reached
   if(allPlinkoBets.length >= TOTAL_GAMES){
     if(autoClickerInterval){
       clearInterval(autoClickerInterval);
@@ -263,7 +267,6 @@ function pressPlayButton(){
     return;
   }
 
-  // Stop auto-clicker if 1000x hit
   if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
     if(autoClickerInterval){
       clearInterval(autoClickerInterval);
@@ -280,32 +283,77 @@ function pressPlayButton(){
 // ------------------------------
 // 🎮 HOTKEYS
 // ------------------------------
-document.addEventListener('keydown', e=>{
-  const k=e.key.toLowerCase(); const inp=getBetInput(); if(!inp)return;
-  let val=parseFloat(inp.value)||0;
-  if(k==='q'){val*=1.1;}
-  if(k==='w'){val*=0.9;}
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  const inp = getBetInput();
+  if(!inp) return;
+  let val = parseFloat(inp.value) || 0;
+
+  if(k === 'q'){ val *= 1.1; }
+  if(k === 'w'){ val *= 0.9; }
   if(['q','w'].includes(k)){
-    inp.value=val.toFixed(6); inp.dispatchEvent(new Event('input',{bubbles:true}));
+    inp.value = val.toFixed(6);
+    inp.dispatchEvent(new Event('input',{bubbles:true}));
     console.log(`🎚️ Bet adjusted: ${val.toFixed(6)}`);
   }
-  if(k==='a'){autoAdjustEnabled=!autoAdjustEnabled;console.log(`⚙️ Auto-adjust: ${autoAdjustEnabled}`);}
-  if(k==='s'){inSafetyMode=!inSafetyMode;console.log(`🛡️ Safety mode: ${inSafetyMode}`);}
-  if(k==='z'&&!autoClickerInterval){
-    autoClickerInterval=setInterval(pressPlayButton,150);
+
+  if(k === 'a'){ autoAdjustEnabled = !autoAdjustEnabled; console.log(`⚙️ Auto-adjust: ${autoAdjustEnabled}`); }
+  if(k === 's'){ inSafetyMode = !inSafetyMode; console.log(`🛡️ Safety mode: ${inSafetyMode}`); }
+
+  if(k === 'z' && !autoClickerInterval){
+    autoClickerInterval = setInterval(pressPlayButton, 150);
     console.log('▶️ Auto-clicker started (150ms)');
   }
-  if(k==='x'&&autoClickerInterval){
-    clearInterval(autoClickerInterval);autoClickerInterval=null;
+  if(k === 'x' && autoClickerInterval){
+    clearInterval(autoClickerInterval); autoClickerInterval = null;
     console.log('⏹️ Auto-clicker stopped');
   }
-  if(k==='p'){pressPlayButton();}
-  if(k==='o'){toggleDashboard();}
+  if(k === 'p'){ pressPlayButton(); }
+  if(k === 'o'){ toggleDashboard(); }
+
+  // Boost factor hotkeys
+  if(k === 'r'){ betBoostFactor *= 1.1; console.log(`🚀 Bet Boost ×${betBoostFactor.toFixed(2)}`); }
+  if(k === 'f'){ betBoostFactor *= 0.9; console.log(`🔻 Bet Boost ×${betBoostFactor.toFixed(2)}`); }
 });
+// ------------------------------
+// ⏱️ 0.2x per second gain tracker
+// ------------------------------
+let lastBalance = null;
+let gainPerSec = 0;
+
+async function trackGainPerSecond() {
+  const bal = await getBalance();
+  if (bal === null) return;
+
+  if (lastBalance !== null) {
+    gainPerSec = bal - lastBalance; // balance change since last tick
+  }
+  lastBalance = bal;
+}
+
+// Update dashboard to include gain per second
+function updateDashboard() {
+  const avg = getAvgHits();
+  const hot = streakWindows.slice(-5).map(w => `${colorEmoji(getHotspotColor(w, avg))}[${w.start}-${w.end}]${w.hits}`).join(' ');
+  const prob = get1000xHitProbability();
+  dash.innerHTML = `
+  <b>Plinko AI Dashboard</b><br>
+  Balance Goal: ${startingBalance ? (startingBalance*1000).toFixed(2) : 'Calculating...'}<br>
+  Boost: ×${betBoostFactor.toFixed(2)} | Safety: ${inSafetyMode ? '🛡️ON' : 'OFF'}<br>
+  Avg Hits: ${avg.toFixed(2)}<br>
+  Hotspots: ${hot || 'None'}<br>
+  1000× Prob (next 10k): ${prob}%<br>
+  Bets Logged: ${allPlinkoBets.length}<br>
+  Gain/sec: ${gainPerSec.toFixed(4)} ×`;
+}
+
+// Hook the gain tracker to run every second
+setInterval(trackGainPerSecond, 1000);
 
 // ------------------------------
 // 🔁 MAIN LOOPS
 // ------------------------------
-dashboardLoop=setInterval(updateDashboard,2000);
-autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
-console.log("✅ Plinko AI Auto-Bet System v3.2 Initialized with staged betting");
+dashboardLoop = setInterval(updateDashboard, 2000);
+autoAdjustLoop = setInterval(adjustBetBasedOnHits, 1000);
+
+console.log("✅ Plinko AI Auto-Bet System v3.3 Loaded");
