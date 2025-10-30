@@ -1,27 +1,42 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.1 — Hotkeys + Dashboard + 150ms Interval
+// 🎯 Plinko AI Auto-Bet System v3.5 — Local Save + Restore
 // ============================================================
 
 // ------------------------------
-// 🔢 DATA STORAGE
+// 🔢 DATA STORAGE (now fully persistent)
 // ------------------------------
-const allPlinkoBets = [];
+let allPlinkoBets = JSON.parse(localStorage.getItem('plinkoAllBets') || '[]');
 let mainData = JSON.parse(localStorage.getItem('plinkoMainData') || '[]');
 let streakWindows = JSON.parse(localStorage.getItem('plinkoStreakWindows') || '[]');
 let learnedPatterns = JSON.parse(localStorage.getItem('plinkoLearnedPatterns') || '[]');
 let predictionHistory = JSON.parse(localStorage.getItem('plinkoPredictionHistory') || '[]');
 
+function saveAllBets() { localStorage.setItem('plinkoAllBets', JSON.stringify(allPlinkoBets)); }
 function saveMainData() { localStorage.setItem('plinkoMainData', JSON.stringify(mainData)); }
 function saveStreakWindows() { localStorage.setItem('plinkoStreakWindows', JSON.stringify(streakWindows)); }
 function saveLearnedPatterns() { localStorage.setItem('plinkoLearnedPatterns', JSON.stringify(learnedPatterns)); }
 function savePredictions() { localStorage.setItem('plinkoPredictionHistory', JSON.stringify(predictionHistory)); }
+
+function clearPlinkoData() {
+  localStorage.removeItem('plinkoAllBets');
+  localStorage.removeItem('plinkoMainData');
+  localStorage.removeItem('plinkoStreakWindows');
+  localStorage.removeItem('plinkoLearnedPatterns');
+  localStorage.removeItem('plinkoPredictionHistory');
+  allPlinkoBets = [];
+  mainData = [];
+  streakWindows = [];
+  learnedPatterns = [];
+  predictionHistory = [];
+  console.log('🧹 Local Plinko data cleared.');
+}
 
 // ------------------------------
 // 🔔 AUDIO + UTILS
 // ------------------------------
 function playPredictionSound() {
   const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-  audio.volume = 0.4;
+  audio.volume = 0.5;
   audio.play().catch(() => console.warn("🔇 Sound blocked until user interacts."));
 }
 function colorEmoji(color) {
@@ -83,8 +98,12 @@ function capturePlinkoBet(response) {
   for (const b of bets) {
     const n = allPlinkoBets.length + 1;
     allPlinkoBets.push({ id: b.id, payoutMultiplier: b.payoutMultiplier, updatedAt: new Date(), gameNumber: n });
+    saveAllBets();
+
     if ([9,26,130,1000].includes(b.payoutMultiplier)) {
-      recordHighHit(n, b.payoutMultiplier); recordHitInBucket(n, b.payoutMultiplier); recordPattern(n, b.payoutMultiplier);
+      recordHighHit(n, b.payoutMultiplier); 
+      recordHitInBucket(n, b.payoutMultiplier); 
+      recordPattern(n, b.payoutMultiplier);
     }
   }
 }
@@ -182,22 +201,18 @@ function updateDashboard() {
   const prob = get1000xHitProbability();
   const all1000s = allPlinkoBets.filter(b => b.payoutMultiplier === 1000);
 
-  // Last 1000× hit data
   let last1000 = all1000s.length ? all1000s[all1000s.length - 1] : null;
   let lastGame = last1000 ? last1000.gameNumber : "N/A";
   let sinceLast = last1000 ? (total - lastGame) : "N/A";
 
-  // Average spacing between 1000× hits
   let avgSpacing = "N/A";
   if (all1000s.length > 1) {
     let diffs = all1000s.slice(1).map((hit, i) => hit.gameNumber - all1000s[i].gameNumber);
     avgSpacing = (diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(0);
   }
 
-  // Hotspots: only show when 1000× hit exists
   let hot = "None";
   if (all1000s.length) {
-    const latest1000 = all1000s[all1000s.length - 1];
     const nearHot = streakWindows
       .filter(w => w.multipliers.includes(1000))
       .slice(-3)
@@ -206,9 +221,8 @@ function updateDashboard() {
     hot = nearHot || "No recent 1000× zones";
   }
 
-  // Format output
   dash.innerHTML = `
-  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.4</div>
+  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.5</div>
   <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
   <div>💰 <b>Balance Goal:</b> ${startingBalance ? (startingBalance * 1000).toFixed(2) : "..."}</div>
   <div>🎯 <b>Boost:</b> ×${betBoostFactor.toFixed(1)} | 🛡️ ${inSafetyMode ? "Safety ON" : "Safety OFF"}</div>
@@ -230,9 +244,9 @@ function toggleDashboard() {
   legend.style.display = dashVisible ? 'block' : 'none';
 }
 
-
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
+// ------------------------------
 async function adjustBetBasedOnHits() {
   if (!autoAdjustEnabled) return;
 
@@ -247,16 +261,13 @@ async function adjustBetBasedOnHits() {
   const net = await getNetGain();
   const total = allPlinkoBets.length;
 
-  // --- Tiny bet logic between 40k and 50k ---
   if (total >= 40000 && total <= 50000) {
-    // Map 40,000 → 0.01 and 50,000 → 0.02
     const tinyBet = 0.01 + ((total - 40000) / 10000) * 0.01;
     await delayedBet(tinyBet.toFixed(6));
     console.log(`🎯 Tiny bet active: ${tinyBet.toFixed(6)} Sweeps (Game ${total})`);
     return;
   }
 
-  // --- Normal auto-adjust logic ---
   if (allPlinkoBets.some(b => b.payoutMultiplier === 1000)) {
     clearInterval(autoClickerInterval); 
     clearInterval(autoAdjustLoop);
@@ -288,7 +299,6 @@ function pressPlayButton(){
   const btn = document.querySelector('button[data-testid="bet-button"]');
   if(!btn || btn.disabled) return;
 
-  // Stop auto-clicker if 40,000 games reached
   if(allPlinkoBets.length >= TOTAL_GAMES){
     if(autoClickerInterval){
       clearInterval(autoClickerInterval);
@@ -299,7 +309,6 @@ function pressPlayButton(){
     return;
   }
 
-  // Stop auto-clicker if 1000x hit
   if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
     if(autoClickerInterval){
       clearInterval(autoClickerInterval);
@@ -344,4 +353,4 @@ document.addEventListener('keydown',e=>{
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
 autoAdjustLoop=setInterval(adjustBetBasedOnHits,500);
-console.log("✅ Plinko AI Auto-Bet System v3.4 Initialized");
+console.log("✅ Plinko AI Auto-Bet System v3.5 Initialized (with local save + restore)");
