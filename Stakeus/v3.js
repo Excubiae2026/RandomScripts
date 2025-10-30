@@ -273,6 +273,24 @@ dash.innerHTML += `
   <div>• 1000× Probability (Next 10k): ${prob}%</div>
   ${all1000s.length ? `<div style="margin-top:6px;">🔥 <b>Hotspots:</b> ${hot}</div>` : ""}
   `;
+  // ----------------- 130× Stats -----------------
+const all130s = allPlinkoBets.filter(b => b.payoutMultiplier === 130);
+let last130 = all130s.length ? all130s[all130s.length - 1].gameNumber : "N/A";
+let sinceLast130 = all130s.length ? (total - last130) : "N/A";
+let avgSpacing130 = "N/A";
+if (all130s.length > 1) {
+  const diffs = all130s.slice(1).map((hit, i) => hit.gameNumber - all130s[i].gameNumber);
+  avgSpacing130 = (diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(0);
+}
+
+dash.innerHTML += `
+<hr style="border:0;border-top:1px solid #333;margin:4px 0;">
+<div>💎 <b>130× Stats</b></div>
+<div>• Last Hit: ${last130}</div>
+<div>• Since Last: ${sinceLast130}</div>
+<div>• Avg Gap: ${avgSpacing130}</div>
+`;
+
 }
 
 let dashVisible = true;
