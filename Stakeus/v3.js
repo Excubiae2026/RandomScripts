@@ -219,7 +219,8 @@ document.body.appendChild(rulesDiv);
 
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
-
+// ------------------------------
+// ⚙️ SMART BET ADJUSTMENT (3-stage game logic)
 async function adjustBetBasedOnHits() {
   if (!autoAdjustEnabled) return;
 
@@ -239,13 +240,13 @@ async function adjustBetBasedOnHits() {
   const midBet = maxBet * 0.5;                     // 50% of max
   const hotBet = maxBet * 0.9;                     // 90% of max
 
-  // Default bet stage based on game number
+  // --- Default bet stage based on game number ---
   let bet;
   if (total < 10000) bet = lowBet;
   else if (total < 40000) bet = midBet;
   else bet = hotBet;
 
-  // Hotspot adjustment: bump bet stage if green or yellow
+  // --- Hotspot adjustment ---
   const cur = total + 1;
   const hot = streakWindows.find(w => cur >= w.start && cur <= w.end);
   if (hot) {
@@ -254,11 +255,10 @@ async function adjustBetBasedOnHits() {
     else if (color === 'green') bet = hotBet;
   }
 
-  // Safety: never bet more than balance
+  // --- Safety: never bet more than balance ---
   bet = Math.min(bet, bal);
   await delayedBet(bet.toFixed(6));
 }
-
 
 // ------------------------------
 // 🎯 PLAY BUTTON / AUTO CLICKER
