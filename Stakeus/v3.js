@@ -1,5 +1,5 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.5 — Hotkeys + Dashboard + 150ms Interval
+// 🎯 Plinko AI Auto-Bet System v3.6 — Hotkeys + Dashboard + 150ms Interval
 // ============================================================
 
 // ------------------------------
@@ -15,6 +15,10 @@ function saveMainData() { localStorage.setItem('plinkoMainData', JSON.stringify(
 function saveStreakWindows() { localStorage.setItem('plinkoStreakWindows', JSON.stringify(streakWindows)); }
 function saveLearnedPatterns() { localStorage.setItem('plinkoLearnedPatterns', JSON.stringify(learnedPatterns)); }
 function savePredictions() { localStorage.setItem('plinkoPredictionHistory', JSON.stringify(predictionHistory)); }
+const maxBet = startingBalance / TOTAL_GAMES;  // e.g., 0.01
+const lowBet = maxBet * 0.1;    // 0.001
+const midBet = maxBet * 0.5;    // 0.005
+const hotBet = maxBet * 0.9;    // 0.009
 
 // ------------------------------
 // 🔔 AUDIO + UTILS
@@ -172,7 +176,7 @@ function updateDashboard(){
   const hot=streakWindows.slice(-5).map(w=>`${colorEmoji(getHotspotColor(w,avg))}[${w.start}-${w.end}]${w.hits}`).join(' ');
   const prob=get1000xHitProbability();
   dash.innerHTML=`
-  <b>Plinko AI Dashboard v3.5</b><br>
+  <b>Plinko AI Dashboard v3.6</b><br>
   Balance Goal: ${startingBalance?(startingBalance*1000).toFixed(2):'Calculating...'}<br>
   Boost: ×${betBoostFactor.toFixed(1)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
   Avg Hits: ${avg.toFixed(2)}<br>
@@ -216,50 +220,42 @@ document.body.appendChild(rulesDiv);
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
 
-async function adjustBetBasedOnHits(){
-  if(!autoAdjustEnabled) return;
+async function adjustBetBasedOnHits() {
+  if (!autoAdjustEnabled) return;
 
-  const bal = await getBalance(); if(!bal) return;
-  const input = getBetInput(); if(!input) return;
+  const bal = await getBalance();
+  if (!bal) return;
+  const input = getBetInput();
+  if (!input) return;
 
-  if(startingBalance === null && bal > 0){
+  if (startingBalance === null && bal > 0) {
     startingBalance = bal;
     console.log(`💰 Starting Balance: ${bal}`);
   }
 
-  const net = await getNetGain();
   const total = allPlinkoBets.length;
+  const maxBet = startingBalance / TOTAL_GAMES;    // ensures 50k games
+  const lowBet = maxBet * 0.1;                     // 10% of max
+  const midBet = maxBet * 0.5;                     // 50% of max
+  const hotBet = maxBet * 0.9;                     // 90% of max
 
-  // --- Tiny bet logic between 40k and 50k ---
-  if(total >= 40000 && total <= 50000){
-    // Map 40k → 0.01, 50k → 0.02
-    const tinyBet = 0.01 + ((total - 40000) / 10000) * 0.01;
-    await delayedBet(tinyBet.toFixed(6));
-    return;
-  }
+  // Default bet stage based on game number
+  let bet;
+  if (total < 10000) bet = lowBet;
+  else if (total < 40000) bet = midBet;
+  else bet = hotBet;
 
-  // --- Normal auto-adjust logic ---
-  if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
-    clearInterval(autoClickerInterval); 
-    clearInterval(autoAdjustLoop);
-    playPredictionSound(); 
-    dash.style.border = '2px solid lime'; 
-    return;
-  }
-
-  const safe = bal / TOTAL_GAMES;
-  const prog = startingBalance ? bal / startingBalance : 1;
-  const risk = Math.min(1 + Math.log10(prog + 0.1) * 0.5, 5);
-  let bet = safe * risk * betBoostFactor;
-
+  // Hotspot adjustment: bump bet stage if green or yellow
   const cur = total + 1;
   const hot = streakWindows.find(w => cur >= w.start && cur <= w.end);
-  if(hot && getHotspotColor(hot, getAvgHits()) === 'green'){
-    bet *= 2;
+  if (hot) {
+    const color = getHotspotColor(hot, getAvgHits());
+    if (color === 'yellow') bet = Math.min(bet * 1.5, hotBet);
+    else if (color === 'green') bet = hotBet;
   }
 
-  bet = Math.min(bet, bal * 0.01);
-  bet = Math.max(bet, safe);
+  // Safety: never bet more than balance
+  bet = Math.min(bet, bal);
   await delayedBet(bet.toFixed(6));
 }
 
@@ -327,4 +323,4 @@ document.addEventListener('keydown',e=>{
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
 autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
-console.log("✅ Plinko AI Auto-Bet System v3.5 Initialized");
+console.log("✅ Plinko AI Auto-Bet System v3.6 Initialized");
