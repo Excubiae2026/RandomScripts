@@ -257,7 +257,6 @@ function updateDashboard() {
   <div>• 1000× Probability (Next 10k): ${prob}%</div>
   ${all1000s.length ? `<div style="margin-top:6px;">🔥 <b>Hotspots:</b> ${hot}</div>` : ""}
   `;
-
 }
 
 let dashVisible = true;
