@@ -218,47 +218,46 @@ rulesDiv.innerHTML = `
 document.body.appendChild(rulesDiv);
 
 // ------------------------------
-// ⚙️ SMART BET ADJUSTMENT
-// ------------------------------
-// ⚙️ SMART BET ADJUSTMENT (3-stage game logic)
+// ⚙️ SMART BET ADJUSTMENT (Staged 50k-game strategy)
 async function adjustBetBasedOnHits() {
   if (!autoAdjustEnabled) return;
 
   const bal = await getBalance();
   if (!bal) return;
+
   const input = getBetInput();
   if (!input) return;
 
+  // Set starting balance on first run
   if (startingBalance === null && bal > 0) {
     startingBalance = bal;
     console.log(`💰 Starting Balance: ${bal}`);
   }
 
-  const total = allPlinkoBets.length;
-  const maxBet = startingBalance / TOTAL_GAMES;    // ensures 50k games
-  const lowBet = maxBet * 0.1;                     // 10% of max
-  const midBet = maxBet * 0.5;                     // 50% of max
-  const hotBet = maxBet * 0.9;                     // 90% of max
-
-  // --- Default bet stage based on game number ---
+  const total = allPlinkoBets.length + 1; // current game number
+  const safe = bal / TOTAL_GAMES;         // base safe bet
   let bet;
-  if (total < 10000) bet = lowBet;
-  else if (total < 40000) bet = midBet;
-  else bet = hotBet;
 
-  // --- Hotspot adjustment ---
-  const cur = total + 1;
-  const hot = streakWindows.find(w => cur >= w.start && cur <= w.end);
+  // Stage bets based on game number
+  if (total <= 10000) bet = safe * 0.5;       // low
+  else if (total <= 40000) bet = safe * 1.0;  // medium
+  else bet = safe * 1.5;                       // high
+
+  // Hotspot adjustment
+  const hot = streakWindows.find(w => total >= w.start && total <= w.end);
   if (hot) {
     const color = getHotspotColor(hot, getAvgHits());
-    if (color === 'yellow') bet = Math.min(bet * 1.5, hotBet);
-    else if (color === 'green') bet = hotBet;
+    if (color === 'yellow') bet *= 1.5;
+    else if (color === 'green') bet *= 2;
   }
 
-  // --- Safety: never bet more than balance ---
-  bet = Math.min(bet, bal);
+  // Safety: limit to max 1% of balance and min of safe bet
+  bet = Math.min(bet, bal * 0.01);
+  bet = Math.max(bet, safe);
+
   await delayedBet(bet.toFixed(6));
 }
+
 
 // ------------------------------
 // 🎯 PLAY BUTTON / AUTO CLICKER
