@@ -214,7 +214,8 @@ S → Toggle safety<br>
 Z → Start auto-click<br>
 X → Stop auto-click<br>
 P → One manual click<br>
-O → Toggle dashboard`;
+O → Toggle dashboard
+`;
 document.body.appendChild(legend);
 
 function updateDashboard() {
@@ -243,10 +244,28 @@ function updateDashboard() {
     hot = nearHot || "No recent 1000× zones";
   }
 
+  // Recent streak (last 20 bets)
+  const recentStreak = allPlinkoBets.slice(-20).map(b => {
+    if (b.payoutMultiplier === 1000) return '💎';
+    if (b.payoutMultiplier === 130) return '🔷';
+    if (b.payoutMultiplier === 26) return '🔶';
+    if (b.payoutMultiplier === 9) return '🟢';
+    return '⚪';
+  }).join(' ');
+
+  // Balance progress
+  const bal = startingBalance ? currentBalance || 0 : 0; // Replace currentBalance with your variable
+  const balPct = startingBalance ? Math.min((bal / startingBalance) * 100, 100) : 0;
+
   dash.innerHTML = `
   <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.5</div>
   <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
   <div>💰 <b>Balance Goal:</b> ${startingBalance ? (startingBalance * 1000).toFixed(2) : "..."}</div>
+  <div>📊 <b>Current Balance:</b> ${bal.toFixed(2)} <span style="color:#0f0;">[${balPct.toFixed(1)}%]</span>
+      <div style="background:#222;height:6px;border-radius:3px;overflow:hidden;margin-top:2px;">
+        <div style="width:${balPct}%;background:lime;height:100%;"></div>
+      </div>
+  </div>
   <div>🎯 <b>Boost:</b> ×${betBoostFactor.toFixed(1)} | 🛡️ ${inSafetyMode ? "Safety ON" : "Safety OFF"}</div>
   <div>📈 <b>Avg Hits:</b> ${avg.toFixed(2)} | <b>Bets Logged:</b> ${total}</div>
   <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
@@ -256,6 +275,8 @@ function updateDashboard() {
   <div>• Avg Gap: ${avgSpacing}</div>
   <div>• 1000× Probability (Next 10k): ${prob}%</div>
   ${all1000s.length ? `<div style="margin-top:6px;">🔥 <b>Hotspots:</b> ${hot}</div>` : ""}
+  <hr style="border:0;border-top:1px solid #333;margin:4px 4px;">
+  <div>📊 <b>Recent Streak (last 20 bets):</b><br>${recentStreak}</div>
   `;
 }
 
