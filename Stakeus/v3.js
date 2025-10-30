@@ -204,7 +204,7 @@ function toggleDashboard(){
 }
 
 // ------------------------------
-// ⚙️ SMART BET ADJUSTMENT (Staged 50k-game strategy)
+// ⚙️ SMART BET ADJUSTMENT (Exponential Staged Strategy)
 async function adjustBetBasedOnHits() {
   if (!autoAdjustEnabled) return;
 
@@ -222,12 +222,13 @@ async function adjustBetBasedOnHits() {
 
   const total = allPlinkoBets.length + 1; // current game number
   const safe = bal / TOTAL_GAMES;         // base safe bet
-  let bet;
 
-  // Stage bets based on game number
-  if (total <= 10000) bet = safe * 0.5;       // low
-  else if (total <= 40000) bet = safe * 1.0;  // medium
-  else bet = safe * 1.5;                       // high
+  // Exponential scaling factor: start near 0.5x, end ~2x at 50k
+  const minFactor = 0.5;
+  const maxFactor = 2.0;
+  const factor = minFactor * Math.pow(maxFactor/minFactor, total/TOTAL_GAMES);
+
+  let bet = safe * factor;
 
   // Hotspot adjustment
   const hot = streakWindows.find(w => total >= w.start && total <= w.end);
