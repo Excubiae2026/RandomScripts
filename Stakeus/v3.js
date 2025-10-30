@@ -1,5 +1,5 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.1 — Hotkeys + Dashboard + 150ms Interval
+// 🎯 Plinko AI Auto-Bet System v3.5 — Hotkeys + Dashboard + 150ms Interval
 // ============================================================
 
 // ------------------------------
@@ -172,7 +172,7 @@ function updateDashboard(){
   const hot=streakWindows.slice(-5).map(w=>`${colorEmoji(getHotspotColor(w,avg))}[${w.start}-${w.end}]${w.hits}`).join(' ');
   const prob=get1000xHitProbability();
   dash.innerHTML=`
-  <b>Plinko AI Dashboard</b><br>
+  <b>Plinko AI Dashboard v3.5</b><br>
   Balance Goal: ${startingBalance?(startingBalance*1000).toFixed(2):'Calculating...'}<br>
   Boost: ×${betBoostFactor.toFixed(1)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
   Avg Hits: ${avg.toFixed(2)}<br>
@@ -186,6 +186,32 @@ function toggleDashboard(){
   dash.style.display=dashVisible?'block':'none';
   legend.style.display=dashVisible?'block':'none';
 }
+// ------------------------------
+// 📝 DASHBOARD RULES / NOTES
+// ------------------------------
+const rulesDiv = document.createElement('div');
+rulesDiv.style.cssText = `
+  position: fixed;
+  top: 250px;   /* Adjust this to place it below your main dashboard */
+  right: 10px;
+  width: 370px;
+  background: #222;
+  color: #fff;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 0 8px #000;
+  z-index: 9999;
+`;
+rulesDiv.innerHTML = `
+<b>📌 Rules / Notes</b><br>
+1️⃣ DONT ADJUST BET TILL 5000 GAMES<br>
+2️⃣ RULE 2<br>
+3️⃣ RULE 3<br>
+4️⃣ Add any other notes here
+`;
+document.body.appendChild(rulesDiv);
 
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
@@ -301,4 +327,4 @@ document.addEventListener('keydown',e=>{
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
 autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
-console.log("✅ Plinko AI Auto-Bet System v3.1 Initialized");
+console.log("✅ Plinko AI Auto-Bet System v3.5 Initialized");
