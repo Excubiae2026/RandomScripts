@@ -1,42 +1,27 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.5 — Local Save + Restore
+// 🎯 Plinko AI Auto-Bet System v3.1 — Hotkeys + Dashboard + 150ms Interval
 // ============================================================
 
 // ------------------------------
-// 🔢 DATA STORAGE (now fully persistent)
+// 🔢 DATA STORAGE
 // ------------------------------
-let allPlinkoBets = JSON.parse(localStorage.getItem('plinkoAllBets') || '[]');
+const allPlinkoBets = [];
 let mainData = JSON.parse(localStorage.getItem('plinkoMainData') || '[]');
 let streakWindows = JSON.parse(localStorage.getItem('plinkoStreakWindows') || '[]');
 let learnedPatterns = JSON.parse(localStorage.getItem('plinkoLearnedPatterns') || '[]');
 let predictionHistory = JSON.parse(localStorage.getItem('plinkoPredictionHistory') || '[]');
 
-function saveAllBets() { localStorage.setItem('plinkoAllBets', JSON.stringify(allPlinkoBets)); }
 function saveMainData() { localStorage.setItem('plinkoMainData', JSON.stringify(mainData)); }
 function saveStreakWindows() { localStorage.setItem('plinkoStreakWindows', JSON.stringify(streakWindows)); }
 function saveLearnedPatterns() { localStorage.setItem('plinkoLearnedPatterns', JSON.stringify(learnedPatterns)); }
 function savePredictions() { localStorage.setItem('plinkoPredictionHistory', JSON.stringify(predictionHistory)); }
-
-function clearPlinkoData() {
-  localStorage.removeItem('plinkoAllBets');
-  localStorage.removeItem('plinkoMainData');
-  localStorage.removeItem('plinkoStreakWindows');
-  localStorage.removeItem('plinkoLearnedPatterns');
-  localStorage.removeItem('plinkoPredictionHistory');
-  allPlinkoBets = [];
-  mainData = [];
-  streakWindows = [];
-  learnedPatterns = [];
-  predictionHistory = [];
-  console.log('🧹 Local Plinko data cleared.');
-}
 
 // ------------------------------
 // 🔔 AUDIO + UTILS
 // ------------------------------
 function playPredictionSound() {
   const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-  audio.volume = 0.5;
+  audio.volume = 0.4;
   audio.play().catch(() => console.warn("🔇 Sound blocked until user interacts."));
 }
 function colorEmoji(color) {
@@ -59,36 +44,16 @@ function recordHitInBucket(gameNumber, mult) {
   }
 }
 function recordHighHit(gameNumber, mult) {
-  // Check if we already have a streak window for this game
   let win = streakWindows.find(w => gameNumber >= w.start && gameNumber <= w.end);
-  if (win) {
-    win.hits++;
-    win.multipliers.push(mult);
-  } else {
-    streakWindows.push({
-      start: gameNumber - 100,
-      end: gameNumber + 100,
-      hits: 1,
-      multipliers: [mult]
-    });
-  }
-
-  // Save streak windows
+  if (win) { win.hits++; win.multipliers.push(mult); }
+  else streakWindows.push({ start: gameNumber - 100, end: gameNumber + 100, hits: 1, multipliers: [mult] });
   saveStreakWindows();
-
-  // Save main data
   if (!mainData.find(h => h.gameNumber === gameNumber)) {
     mainData.push({ gameNumber, multiplier: mult });
     saveMainData();
   }
-
-  // Optional: log to console for each special multiplier
-  if ([1000, 130, 26, 9].includes(mult)) {
-    console.log(`🎯 Hit detected! ${mult}× at game ${gameNumber}`);
-  }
 }
-
-function getAvgHits(count = 5) {
+function getAvgHits(count = 50) {
   const wins = streakWindows.slice(-count);
   if (!wins.length) return 1;
   return wins.reduce((s, w) => s + w.hits, 0) / wins.length;
@@ -101,7 +66,7 @@ function getHotspotColor(win, avg) {
 // ------------------------------
 // 📥 PATTERN LEARNING
 // ------------------------------
-const PATTERN_LENGTH = 25;
+const PATTERN_LENGTH = 5;
 function recordPattern(gameNumber, mult) {
   if (gameNumber <= PATTERN_LENGTH) return;
   const pattern = allPlinkoBets.slice(gameNumber - PATTERN_LENGTH - 1, gameNumber - 1).map(b => b.payoutMultiplier);
@@ -118,17 +83,11 @@ function capturePlinkoBet(response) {
   for (const b of bets) {
     const n = allPlinkoBets.length + 1;
     allPlinkoBets.push({ id: b.id, payoutMultiplier: b.payoutMultiplier, updatedAt: new Date(), gameNumber: n });
-    saveAllBets();
-
-    // Track any “special hit”
-    if ([9, 26, 130, 1000].includes(b.payoutMultiplier)) {
-      recordHighHit(n, b.payoutMultiplier);
-      recordHitInBucket(n, b.payoutMultiplier);
-      recordPattern(n, b.payoutMultiplier);
+    if ([9,26,130,1000].includes(b.payoutMultiplier)) {
+      recordHighHit(n, b.payoutMultiplier); recordHitInBucket(n, b.payoutMultiplier); recordPattern(n, b.payoutMultiplier);
     }
   }
 }
-
 // Hook network
 const origFetch = window.fetch;
 window.fetch = async function(...args){
@@ -188,24 +147,15 @@ function get1000xHitProbability(cur=allPlinkoBets.length, end=TOTAL_GAMES){
 }
 
 // ------------------------------
-// 🖥️ ENHANCED DASHBOARD + HOTKEY LEGEND
+// 🖥️ DASHBOARD + HOTKEY LEGEND
 // ------------------------------
-const dash = document.createElement('div');
-dash.style.cssText = `
-  position:fixed;top:10px;right:10px;width:390px;background:#111;color:#fff;
-  font-family:'Consolas',monospace;font-size:12px;z-index:9999;padding:10px;
-  border-radius:8px;box-shadow:0 0 10px rgba(0,255,100,0.3);
-  border:1px solid rgba(0,255,100,0.2);
-`;
+const dash=document.createElement('div');
+dash.style.cssText='position:fixed;top:10px;right:10px;width:370px;background:#111;color:#fff;font-family:sans-serif;font-size:12px;z-index:9999;padding:10px;border-radius:8px;box-shadow:0 0 8px #000;';
 document.body.appendChild(dash);
 
-const legend = document.createElement('div');
-legend.style.cssText = `
-  position:fixed;top:10px;right:415px;width:180px;background:#000;
-  color:#0f0;font-family:monospace;font-size:11px;padding:8px;
-  border-radius:8px;z-index:9999;display:none;
-`;
-legend.innerHTML = `
+const legend=document.createElement('div');
+legend.style.cssText='position:fixed;top:10px;right:395px;width:180px;background:#000;color:#0f0;font-family:monospace;font-size:11px;padding:8px;border-radius:8px;z-index:9999;display:none;';
+legend.innerHTML=`
 <b>🎮 Hotkeys</b><br>
 Q → +10% bet<br>
 W → -10% bet<br>
@@ -214,89 +164,39 @@ S → Toggle safety<br>
 Z → Start auto-click<br>
 X → Stop auto-click<br>
 P → One manual click<br>
-O → Toggle dashboard
-`;
+O → Toggle dashboard`;
 document.body.appendChild(legend);
 
-function updateDashboard() {
-  const avg = getAvgHits();
-  const total = allPlinkoBets.length;
-  const prob = get1000xHitProbability();
-  const all1000s = allPlinkoBets.filter(b => b.payoutMultiplier === 1000);
-
-  let last1000 = all1000s.length ? all1000s[all1000s.length - 1] : null;
-  let lastGame = last1000 ? last1000.gameNumber : "N/A";
-  let sinceLast = last1000 ? (total - lastGame) : "N/A";
-
-  let avgSpacing = "N/A";
-  if (all1000s.length > 1) {
-    let diffs = all1000s.slice(1).map((hit, i) => hit.gameNumber - all1000s[i].gameNumber);
-    avgSpacing = (diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(0);
-  }
-
-  let hot = "None";
-  if (all1000s.length) {
-    const nearHot = streakWindows
-      .filter(w => w.multipliers.includes(1000))
-      .slice(-3)
-      .map(w => `💎 [${w.start}-${w.end}] hits:${w.hits}`)
-      .join(' ');
-    hot = nearHot || "No recent 1000× zones";
-  }
-
-  // Recent streak (last 20 bets)
-  const recentStreak = allPlinkoBets.slice(-20).map(b => {
-    if (b.payoutMultiplier === 1000) return '💎';
-    if (b.payoutMultiplier === 130) return '🔷';
-    if (b.payoutMultiplier === 26) return '🔶';
-    if (b.payoutMultiplier === 9) return '🟢';
-    return '⚪';
-  }).join(' ');
-
-  // Balance progress
-  const bal = startingBalance ? currentBalance || 0 : 0; // Replace currentBalance with your variable
-  const balPct = startingBalance ? Math.min((bal / startingBalance) * 100, 100) : 0;
-
-  dash.innerHTML = `
-  <div style="color:#0f0;font-weight:bold;font-size:13px;">🤖 Plinko AI Dashboard - 3.5</div>
-  <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
-  <div>💰 <b>Balance Goal:</b> ${startingBalance ? (startingBalance * 1000).toFixed(2) : "..."}</div>
-  <div>📊 <b>Current Balance:</b> ${bal.toFixed(2)} <span style="color:#0f0;">[${balPct.toFixed(1)}%]</span>
-      <div style="background:#222;height:6px;border-radius:3px;overflow:hidden;margin-top:2px;">
-        <div style="width:${balPct}%;background:lime;height:100%;"></div>
-      </div>
-  </div>
-  <div>🎯 <b>Boost:</b> ×${betBoostFactor.toFixed(1)} | 🛡️ ${inSafetyMode ? "Safety ON" : "Safety OFF"}</div>
-  <div>📈 <b>Avg Hits:</b> ${avg.toFixed(2)} | <b>Bets Logged:</b> ${total}</div>
-  <hr style="border:0;border-top:1px solid #333;margin:4px 0;">
-  <div>💎 <b>1000× Stats</b></div>
-  <div>• Last Hit: ${lastGame}</div>
-  <div>• Since Last: ${sinceLast}</div>
-  <div>• Avg Gap: ${avgSpacing}</div>
-  <div>• 1000× Probability (Next 10k): ${prob}%</div>
-  ${all1000s.length ? `<div style="margin-top:6px;">🔥 <b>Hotspots:</b> ${hot}</div>` : ""}
-  <hr style="border:0;border-top:1px solid #333;margin:4px 4px;">
-  <div>📊 <b>Recent Streak (last 20 bets):</b><br>${recentStreak}</div>
-  `;
+function updateDashboard(){
+  const avg=getAvgHits();
+  const hot=streakWindows.slice(-5).map(w=>`${colorEmoji(getHotspotColor(w,avg))}[${w.start}-${w.end}]${w.hits}`).join(' ');
+  const prob=get1000xHitProbability();
+  dash.innerHTML=`
+  <b>Plinko AI Dashboard</b><br>
+  Balance Goal: ${startingBalance?(startingBalance*1000).toFixed(2):'Calculating...'}<br>
+  Boost: ×${betBoostFactor.toFixed(1)} | Safety: ${inSafetyMode?'🛡️ON':'OFF'}<br>
+  Avg Hits: ${avg.toFixed(2)}<br>
+  Hotspots: ${hot||'None'}<br>
+  1000× Prob (next 10k): ${prob}%<br>
+  Bets Logged: ${allPlinkoBets.length}`;
 }
-
-let dashVisible = true;
-function toggleDashboard() {
-  dashVisible = !dashVisible;
-  dash.style.display = dashVisible ? 'block' : 'none';
-  legend.style.display = dashVisible ? 'block' : 'none';
+let dashVisible=true;
+function toggleDashboard(){
+  dashVisible=!dashVisible;
+  dash.style.display=dashVisible?'block':'none';
+  legend.style.display=dashVisible?'block':'none';
 }
 
 // ------------------------------
 // ⚙️ SMART BET ADJUSTMENT
-// ------------------------------
-async function adjustBetBasedOnHits() {
-  if (!autoAdjustEnabled) return;
 
-  const bal = await getBalance(); if (!bal) return;
-  const input = getBetInput(); if (!input) return;
+async function adjustBetBasedOnHits(){
+  if(!autoAdjustEnabled) return;
 
-  if (startingBalance === null && bal > 0) {
+  const bal = await getBalance(); if(!bal) return;
+  const input = getBetInput(); if(!input) return;
+
+  if(startingBalance === null && bal > 0){
     startingBalance = bal;
     console.log(`💰 Starting Balance: ${bal}`);
   }
@@ -304,14 +204,16 @@ async function adjustBetBasedOnHits() {
   const net = await getNetGain();
   const total = allPlinkoBets.length;
 
-  if (total >= 40000 && total <= 50000) {
+  // --- Tiny bet logic between 40k and 50k ---
+  if(total >= 40000 && total <= 50000){
+    // Map 40k → 0.01, 50k → 0.02
     const tinyBet = 0.01 + ((total - 40000) / 10000) * 0.01;
     await delayedBet(tinyBet.toFixed(6));
-    console.log(`🎯 Tiny bet active: ${tinyBet.toFixed(6)} Sweeps (Game ${total})`);
     return;
   }
 
-  if (allPlinkoBets.some(b => b.payoutMultiplier === 1000)) {
+  // --- Normal auto-adjust logic ---
+  if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
     clearInterval(autoClickerInterval); 
     clearInterval(autoAdjustLoop);
     playPredictionSound(); 
@@ -326,7 +228,7 @@ async function adjustBetBasedOnHits() {
 
   const cur = total + 1;
   const hot = streakWindows.find(w => cur >= w.start && cur <= w.end);
-  if (hot && getHotspotColor(hot, getAvgHits()) === 'green') {
+  if(hot && getHotspotColor(hot, getAvgHits()) === 'green'){
     bet *= 2;
   }
 
@@ -335,6 +237,7 @@ async function adjustBetBasedOnHits() {
   await delayedBet(bet.toFixed(6));
 }
 
+
 // ------------------------------
 // 🎯 PLAY BUTTON / AUTO CLICKER
 // ------------------------------
@@ -342,6 +245,7 @@ function pressPlayButton(){
   const btn = document.querySelector('button[data-testid="bet-button"]');
   if(!btn || btn.disabled) return;
 
+  // Stop auto-clicker if 40,000 games reached
   if(allPlinkoBets.length >= TOTAL_GAMES){
     if(autoClickerInterval){
       clearInterval(autoClickerInterval);
@@ -352,6 +256,7 @@ function pressPlayButton(){
     return;
   }
 
+  // Stop auto-clicker if 1000x hit
   if(allPlinkoBets.some(b => b.payoutMultiplier === 1000)){
     if(autoClickerInterval){
       clearInterval(autoClickerInterval);
@@ -380,8 +285,8 @@ document.addEventListener('keydown',e=>{
   if(k==='a'){autoAdjustEnabled=!autoAdjustEnabled;console.log(`⚙️ Auto-adjust: ${autoAdjustEnabled}`);}
   if(k==='s'){inSafetyMode=!inSafetyMode;console.log(`🛡️ Safety mode: ${inSafetyMode}`);}
   if(k==='z'&&!autoClickerInterval){
-    autoClickerInterval=setInterval(pressPlayButton,100);
-    console.log('▶️ Auto-clicker started (100ms)');
+    autoClickerInterval=setInterval(pressPlayButton,150);
+    console.log('▶️ Auto-clicker started (150ms)');
   }
   if(k==='x'&&autoClickerInterval){
     clearInterval(autoClickerInterval);autoClickerInterval=null;
@@ -395,5 +300,5 @@ document.addEventListener('keydown',e=>{
 // 🔁 MAIN LOOPS
 // ------------------------------
 dashboardLoop=setInterval(updateDashboard,2000);
-autoAdjustLoop=setInterval(adjustBetBasedOnHits,500);
-console.log("✅ Plinko AI Auto-Bet System v3.5 Initialized (with local save + restore)");
+autoAdjustLoop=setInterval(adjustBetBasedOnHits,1000);
+console.log("✅ Plinko AI Auto-Bet System v3.1 Initialized");
