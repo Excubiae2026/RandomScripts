@@ -1,5 +1,5 @@
 // ============================================================
-// 🎯 Plinko AI Auto-Bet System v3.4 — Safe-Strategy + Hotkeys + Dashboard + 150ms Interval + Dynamic Boost
+// 🎯 Plinko AI Auto-Bet System v3.4 — Safe-Strategy + Hotkeys + Dashboard + 150ms Interval + Dynamic Boost + Probabilities
 // ============================================================
 
 // ------------------------------
@@ -95,7 +95,6 @@ function capturePlinkoBet(response) {
       recordPattern(n, b.payoutMultiplier);
     }
 
-    // Update Safe Strategy after each result
     updateSafeStrategy(b.payoutMultiplier);
   }
 }
@@ -159,12 +158,20 @@ async function getNetGain(){
 // ------------------------------
 // 📈 PROBABILITY
 // ------------------------------
-function get1000xHitProbability(cur=allPlinkoBets.length, end=TOTAL_GAMES){
-  const hits=allPlinkoBets.filter(b=>b.payoutMultiplier===1000);
-  if(!hits.length)return 0;
-  const total=end-cur; const future=hits.filter(h=>h.gameNumber>=cur&&h.gameNumber<=end);
-  const rate=hits.length/allPlinkoBets.length; const exp=total*rate;
-  const obs=future.length/total; return ((rate*0.6+obs*0.4)*100).toFixed(2);
+function getHitProbability(multiplier, cur = allPlinkoBets.length, end = TOTAL_GAMES) {
+  const hits = allPlinkoBets.filter(b => b.payoutMultiplier === multiplier);
+  if (!hits.length || allPlinkoBets.length === 0) return 0;
+  const total = end - cur;
+  const future = hits.filter(h => h.gameNumber >= cur && h.gameNumber <= end);
+  const rate = hits.length / allPlinkoBets.length;
+  const obs = future.length / total;
+  const prob = ((rate * 0.6 + obs * 0.4) * 100).toFixed(2);
+  return prob;
+}
+
+// Keep compatibility
+function get1000xHitProbability() {
+  return getHitProbability(1000);
 }
 
 // ------------------------------
@@ -206,8 +213,8 @@ async function trackGainPerSecond() {
 // ------------------------------
 // ⚙️ SAFE STRATEGY AI
 // ------------------------------
-const SAFEZONE_PERCENT = 0.01; // max 1% of balance
-const STRAT_STEP = 0.1;        // 10% step
+const SAFEZONE_PERCENT = 0.01;
+const STRAT_STEP = 0.1;
 let safeStrat = { betMultiplier: 1.0, lastResult: 0 };
 
 function updateSafeStrategy(multiplier) {
@@ -288,7 +295,9 @@ async function updateDashboard() {
   html += `Safe Mode: ${inSafetyMode ? '✅':'❌'}<br>`;
   html += `Last Safe Mult: ${safeStrat.betMultiplier.toFixed(2)}<br>`;
   html += `Avg Hits (50): ${avgHits.toFixed(2)}<br>`;
-  html += `1000x Hit Prob: ${get1000xHitProbability()}%<br>`;
+  html += `26x Hit Prob: ${getHitProbability(26)}%<br>`;
+  html += `130x Hit Prob: ${getHitProbability(130)}%<br>`;
+  html += `1000x Hit Prob: ${getHitProbability(1000)}%<br>`;
   dash.innerHTML = html;
 }
 
@@ -299,6 +308,6 @@ if(!dashboardLoop) dashboardLoop=setInterval(updateDashboard,500);
 if(!autoAdjustLoop) autoAdjustLoop=setInterval(adjustBetSafeStrategy,500);
 
 // ============================================================
-// ✅ FULL v3.4 WITH SAFE STRATEGY ENABLED
+// ✅ FULL v3.4 WITH 26x, 130x, 1000x PROBABILITIES + SAFE STRATEGY
 // ============================================================
-console.log("🚀 Plinko AI v3.4 loaded — Safe-Strategy active");
+console.log("🚀 Plinko AI v3.4 loaded — Safe-Strategy active + Probabilities Enabled");
